@@ -1,8 +1,10 @@
 #include<iostream>
 #include<cstdlib>
 #include<fstream>
+#include<sstream>
 #include<string>
 #include<sys/time.h>
+#include "parallel.h"
 
 using namespace std;
 
@@ -41,52 +43,33 @@ void displayInput(int *arr1, int *arr2, int n1, int n2){
 	cout << endl;
 }
 
-int LCS(int n1, int n2, int *arr1, int *arr2, int *table){
-	int lcslength;
 
-	for (int i=0; i<=n2; i++)
-		table[i] = 0;
-
-	for (int i=0; i<(n1+1)*(n2+1); i+=(n2+1))
-		table[i] = 0;
-
-	for (int i=0; i < n1; i++){
-		for (int j=0; j < n2; j++){
-			int idx = i+1;
-			int idy = j+1;
-
-			if (arr1[i] == arr2[j]){
-				table[idx * (n2+1) + idy] = table[i * (n2+1) +j] + 1;
-			}
-			else{
-				table[idx * (n2+1) + idy] = max(table[idx * (n2+1) + j], table[i * (n2+1) + idy]);
-			}
-		}
+int main(int argc, char **argv){
+	int nn1, nn2;
+	if (argc !=3){
+		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
+		exit(EXIT_FAILURE);
+	}	
+	else{
+		nn1 = atoi(argv[1]);
+		nn2 = atoi(argv[2]);	
 	}
-/*
-	//display table
-	cout << "full table: " << endl;
-	for (int i=0; i<n1; i++){
-		int idx = i+1;
-		for (int j=0; j<n2; j++){
-			int idy = j+1;
-			cout << table[idx * (n2+1) + idy] << " ";
-		}
-		cout << endl;
-	}
-*/	
-	lcslength = table[ (n1+1) * (n2+1) - 1];
+	
+	ostringstream convert1, convert2;
 
-	return lcslength;
-}
+	convert1 << nn1;
+	convert2 << nn2;
 
-
-
-int main(){
-	string filename, filepath, fileformat;
+	string filename, filename1, filename2, filepath, fileformat;
 	filepath = "./Data/";
-	filename = "str1_2_15_str2_2_15";	
+	filename1 = "str1_2_";
+	filename2 = "_str2_2_";	
 	fileformat = ".txt";
+	
+	filename.append(filename1.c_str());
+	filename.append(convert1.str());
+	filename.append(filename2.c_str());
+	filename.append(convert2.str());
 
 	string str1;
 	str1.append(filepath);
@@ -98,16 +81,16 @@ int main(){
 	int lcslength;	
 	
 	readInputData(str1, n1, n2, &arr1, &arr2);
-
+	
+	cout << "input data loaded" << endl;
 //	displayInput(arr1, arr2, n1, n2);
 
-	table = new int[(n1+1) * (n2+1)];
 	
 	struct timeval tbegin, tend;
 
 	gettimeofday(&tbegin, NULL);
 	
-	lcslength = LCS(n1, n2, arr1, arr2, table);
+	lcslength = LCS(n1, n2, arr1, arr2);
 
 	gettimeofday(&tend, NULL);
 
@@ -118,7 +101,6 @@ int main(){
 
 	delete[] arr1;
 	delete[] arr2;
-	delete[] table;
 
 	return 0;
 }
