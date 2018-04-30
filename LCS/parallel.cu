@@ -30,10 +30,11 @@ __global__ void GPU(int *dev_table, int *dev_arr1, int *dev_arr2, int startIdx, 
 
 
 
-__global__ void GPU(int tilesize, const int threadNum, const int maxThreads, int *dev_table, const int rowsize, const int maxlevel){
+__global__ void GPU(const int tilesize, const int poolsize, const int threadNum, const int maxThreads, int *dev_table, const int rowsize, const int maxlevel, int tileX, int lenY){
 	//This code has to ensure n2 size is the multiple of 128. And n2 is no smaller than n1, where n2 is row array size, n1 is colum array size
 	//on K40, tile size is max to 48K, which is 128*96; on pascal and volta, tile size is max to 64K which is 128*128
-	__shared__ int tile[12288];
+	//For running on K40, we reserve the shared memory space for a 64*64 tile. Because of the dependency, the actual shared memory size is 96 * 96. 96 is picked for ensuring memory coalscing.
+	__shared__ int tile[9216];
 
 	int thread = blockIdx.x * blockDim.x + threadIdx.x;
 	int idx = thread;
@@ -84,8 +85,8 @@ void checkGPUError(cudaError err){
 int LCS(int n1, int n2, int *arr1, int *arr2){
 	int lcslength;
 	int poolsize = 32;
-	int tileX = 128;
-	int tileY = 96;
+	int tileX = 64;
+	int tileY = 64;
 	int rowsize = poolsize + n2;
 	int colsize = poolsize + n1;
 
@@ -151,18 +152,20 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 		
 		while ( startSegX > 0 && startSegY <= yseg - 1){
 			//suppose n2 is the row size and the longer array
-			int i = poolsize + startSegX * tileX;
-			int j = poolsize + startSegY * tileY;
-			int startSegAdd = j * (n2 + poolsize) + i;
+			//int i = poolsize + startSegX * tileX;
+			//int j = poolsize + startSegY * tileY;
+			int i = startSegX * tileX;
+			int j = startSegY * tileY;
+			int startSegAdd = j * rowsize + i;
 			int s = segIdx % numStream;
 			//resY is used to determine the rest size of Y. This is used to check if the rest size of Y is smaller than tileY.
 			int resY = n1 - startSegY * tileY;
 			int lenY = min(resY, tileY);
 			maxlevel = tileX + lenY - 1;
 			maxThreads = min(tileX, lenY);
-			int tilesize = tileX * lenY;
+			int tilesize = (tileX+poolsize) * (lenY+poolsize);
 
-			GPU<<<1, threadPerBlock, 0, stream[s]>>>(tilesize, threadPerBlock, maxThreads, &dev_table[startSegAdd], rowsize);
+			GPU<<<1, threadPerBlock, 0, stream[s]>>>(tilesize, poolsize, threadPerBlock, maxThreads, &dev_table[startSegAdd], rowsize, tileX, lenY);
 
 			//This code has to ensure n2 size is the multiple of 128.
 			while (curlevel <= maxlevel){				

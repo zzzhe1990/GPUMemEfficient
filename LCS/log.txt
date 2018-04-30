@@ -1,0 +1,16 @@
+Attention:
+1. tile size can be different on different architecture.
+	K40: 96 * 96
+	pascal: 128*128
+	volta: 128*128
+2. the shared memory space reserved for each tile should also include dependency, which means the actual work parallelism is smaller than the array size. 
+3. To ensure the memory coalscing, I extend each dimension of the table by 32. Also, when copying from global memory to the shared memory, a pooling of 32 is also added. Thus, if the tile size is changed, please change shared memory
+   size too.
+4. 
+
+
+************************************************
+Apr 30 2018
+***********************************************
+1. A tile is allocated to one block only, which ensures it is executed by one complete SM. Thus, the best case is that the largest concurrency is equal to the number of cores in each SM.
+2. In the block, each GPU thread has its own parameters like curlevel, curjobs and etc. This is to save the shared memory and reduce the use of conditional branch.
