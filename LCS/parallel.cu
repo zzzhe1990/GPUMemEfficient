@@ -68,7 +68,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	int curlevel = 1;
 	int curjobs = 1;
 	int startx, starty;
-	int threadPerBlock = 96, blockPerGrid;
+	int threadPerBlock = 64, blockPerGrid;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 

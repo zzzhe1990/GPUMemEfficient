@@ -7,3 +7,12 @@ Found:
 
 To do:
 1. Discover the reason that blocksize of 96 has better performance. L1 cache related? 
+
+
+
+
+**************************************
+Apr 30
+*************************************
+Found:
+1. blocksize of 64 returns even better performance
