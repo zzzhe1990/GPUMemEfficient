@@ -68,7 +68,9 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	int curlevel = 1;
 	int curjobs = 1;
 	int startx, starty;
-	int threadPerBlock = 1024, blockPerGrid;
+	int threadPerBlock = 96, blockPerGrid;
+
+	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
 	//suppose n2 is the row size and the longer array
 	while(curlevel <= maxlevel){

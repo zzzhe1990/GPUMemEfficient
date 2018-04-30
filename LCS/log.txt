@@ -1,0 +1,9 @@
+************************************
+Apr 29 2018
+***********************************
+Found:
+1. Anti-diagonal GPU implementation has better performance when the blocksize is 96 or 128 comparing to 1024.
+
+
+To do:
+1. Discover the reason that blocksize of 96 has better performance. L1 cache related? 
