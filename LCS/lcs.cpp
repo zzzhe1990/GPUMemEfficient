@@ -4,7 +4,7 @@
 #include<sstream>
 #include<string>
 #include<sys/time.h>
-#include "parallel.h"
+#include "GPU_TILE.h"
 
 using namespace std;
 
