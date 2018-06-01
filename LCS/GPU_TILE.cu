@@ -146,7 +146,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 			startSegY = curSegLevel - xseg;
 		}
 		
-		cout << "curSegLevel: " << curSegLevel << ", maxSegLevel: " << maxSegLevel << endl;	
+//		cout << "curSegLevel: " << curSegLevel << ", maxSegLevel: " << maxSegLevel << endl;	
 		
 		while ( startSegX >= 0 && startSegY <= yseg - 1){
 			//suppose n2 is the row size and the longer array
@@ -165,14 +165,12 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 
 			GPU<<<blockPerGrid, threadPerBlock, 0, stream[s]>>>(tilesize, poolsize, maxthreads, &dev_table[startSegAdd], rowsize, 
 										maxlevel, tileX, lenY, &dev_arr1[i], &dev_arr2[j]);
-			cudaStreamSynchronize(stream[s]);
 		
 //			cout << "startSegX: " << startSegX << ", startSegY: " << startSegY << ", segIdx: " << segIdx << endl;
 			startSegX--;
 			startSegY++;
 			segIdx++;
 		}
-		cout << endl;
 		//this synchronization is might removable
 		cudaDeviceSynchronize();
 
