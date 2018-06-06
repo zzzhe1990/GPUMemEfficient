@@ -4,7 +4,7 @@
 #include<sstream>
 #include<string>
 #include<sys/time.h>
-#include "GPU_TILE.h"
+#include "GPU_TILE_NOSHARE.h"
 
 using namespace std;
 

@@ -8,7 +8,8 @@ Attention:
    size too.
 4. Number of total threads equals to the size of tile row size.
 5. Number of active threads equals to the current active jobs. 
-
+6. For each tile, the current code works only when tileX >= tileY.
+7. To point out the work contribution, we have to emphasize the utilization of the shared memory.
 
 ************************************************
 Apr 30 2018
@@ -16,3 +17,11 @@ Apr 30 2018
 1. A tile is allocated to one block only, which ensures it is executed by one complete SM. Thus, the best case is that the largest concurrency is equal to the number of cores in each SM.
 2. In the block, each GPU thread has its own parameters like curlevel, curjobs and etc. This is to save the shared memory and reduce the use of conditional branch.
 
+
+*************************************************
+June 6 2018
+*************************************************
+1. Rectangular tile for using shared memory and no shared memory are completed.
+2. Using shared memory is more efficient when the concurrency of the two codes are same. No shared memory is better when the tile size is too big to put into the shared memory.
+3. Some papers talked about wavefront loop, especially: PeerSM synchronous, already did research on my next step work. The difference is that we use shared memory.
+4. PeerSM synchronous has the similar lock implementation as what I thought. We can improve this lock by using one increment variable for each row of tiles instead of a 2-D arrays that each element represents one tile.

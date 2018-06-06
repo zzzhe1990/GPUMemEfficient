@@ -14,7 +14,7 @@ __global__ void GPU(const int tilesize, const int poolsize, const int maxThreads
 	//This code has to ensure n2 size is the multiple of 128. And n2 is no smaller than n1, where n2 is row array size, n1 is colum array size
 	//on K40, tile size is max to 48K, which is 128*96; on pascal and volta, tile size is max to 64K which is 128*128
 	//For running on K40, we reserve the shared memory space for a 64*64 tile. Because of the dependency, the actual shared memory size is 96 * 96. 96 is picked for ensuring memory coalscing.
-	__shared__ int table[9216];
+//	__shared__ int table[9216];
 
 	int thread = threadIdx.x;
 	int idx = thread;
@@ -25,12 +25,11 @@ __global__ void GPU(const int tilesize, const int poolsize, const int maxThreads
 	int tableX = tileX + poolsize;
 	int x,y;
 //	printf("thread: %d, idx: %d, address: %d, tableX: %d\n", thread, idx, address, tableX);
-	while(idx < tilesize){
-//		printf("thread: %d, idx: %d, address: %d\n", thread, idx, address);
-		table[idx] = dev_table[address];
-		address += rowsize;
-		idx += blockDim.x;
-	}
+//	while(idx < tilesize){
+//		table[idx] = dev_table[address];
+//		address += rowsize;
+//		idx += blockDim.x;
+//	}
 	
 	while (curlevel <= maxlevel){
 		if (curlevel <= lenY){
@@ -52,12 +51,12 @@ __global__ void GPU(const int tilesize, const int poolsize, const int maxThreads
 		if (thread < curjobs){
 			startx -= thread;
 			starty += thread;
-			startIdx = startx + starty * tableX;
-			table[startIdx] = max(table[startIdx - 1], table[startIdx - tableX]);
+			startIdx = startx + starty * rowsize;
+			dev_table[startIdx] = max(dev_table[startIdx - 1], dev_table[startIdx - rowsize]);
 			x = startx - poolsize;
 			y = starty - poolsize;
 			if (dev_arr1[x] == dev_arr2[y])
-				table[startIdx] = table[startIdx - tableX - 1] + 1;				
+				dev_table[startIdx] = dev_table[startIdx - rowsize - 1] + 1;				
 //			printf("curlevel: %d, curjobs: %d, thread: %d, idx: %d, startx: %d, starty: %d, startIdx: %d\n", curlevel, curjobs, thread, idx, startx, starty, startIdx);
 		}
 
@@ -67,13 +66,6 @@ __global__ void GPU(const int tilesize, const int poolsize, const int maxThreads
 		__syncthreads();	
 	}
 	
-	idx = thread;
-	address = thread;
-	while (idx < tilesize){
-		dev_table[address] = table[idx];
-		address += rowsize;
-		idx += blockDim.x;
-	}
 }
 
 void checkGPUError(cudaError err){
@@ -87,7 +79,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	int lcslength;
 	int poolsize = 32;
 	int tileX = 64;
-	int tileY = 64;
+	int tileY = 96;
 	int rowsize = poolsize + n2;
 	int colsize = poolsize + n1;
 
