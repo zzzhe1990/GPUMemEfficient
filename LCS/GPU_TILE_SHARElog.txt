@@ -25,3 +25,90 @@ June 6 2018
 2. Using shared memory is more efficient when the concurrency of the two codes are same. No shared memory is better when the tile size is too big to put into the shared memory.
 3. Some papers talked about wavefront loop, especially: PeerSM synchronous, already did research on my next step work. The difference is that we use shared memory.
 4. PeerSM synchronous has the similar lock implementation as what I thought. We can improve this lock by using one increment variable for each row of tiles instead of a 2-D arrays that each element represents one tile.
+
+
+*************************************************
+June 7 2018
+*************************************************
+Start hyperlane
+
+1. tileY and tileX must completely divide Y axis and X axis. 
+2. tileY must be the integer times of tileX.
+3. If tileX != tileY, The first tile of each row has to depends on the completion of multiple tiles at the previous row. The number of tiles to be depent on is determined by tileY/tileX, which is also the offset between the index of a tile and the index of its dependt tile.
+4. The last tile is not the same size as the first tile because the last tile does not include the anti-diagonal level for the size of tileY. 
+
+kernel structure: 
+	instead of a anti-diagonal of tiles, now we schedule a row of tiles to one kernel, and each kernel has only one block.
+
+Shared Memory: 
+	a. To avoid bank conflict issue, we perform memory reconstruction to have the same level elements stored consectively.
+	b. Because of the change of memory layout, the LCS dependency is also changed. We track down two variables for each element: level, index within each level. We use these two variables to calculate the related variables for the dependent elements and locate these elements in shared memory.
+
+Specefic manipulation:
+	First row: 
+		a. The elements of this row may depend on value 0 along Y axis.
+		b. The computation of this row of tiles can start without checking lock variables.
+	First tile of each row:
+		a. The elements of this tile may depend on value 0 along X axis.
+		b. The computation starts only when lock variable of the previous row is no smaller than 1. (Except first row)
+	Other tiles:
+		a. Have to check the lock variable of the previous row before the execution.
+
+	First and last tile:
+		a. this is not a hyperlane but a half rectangular, thus X length is equal to Y length even if tileX != tileY.
+	The last hyperlane tile:
+		a. X length might be different from tileX, if the table X size cannot be completely divided by tileX.
+
+In-tile dependency:
+	First & Last tile:
+		same as rectangular 
+	hyperlane:
+		elements of each diagnoal are stored consecutively. 
+		1 2 3 		1, 4, 7		if idx = 6,
+	      4 5 6    --->  	2, 5, 8  ---> 	up dep: idx-tileY-1 --> 2;  left dep: idx-tileY --> 5
+            7 8 9    		3, 6, 9		diagonal dep: idx-tileY*2-1 --> 1
+
+Lock
+	Array lock is an array of rows that the size of the array is equal to the number of rows.
+
+padding
+	padding size : 2 for both X and Y.
+
+Memory copy between global memory and shared memory
+	global --> shared: we need to copy extra padding elements
+	shared --> global: we can only copy the new updated elements, which is faster. (This is not implemented yet)	
+
+Code Structure
+	First Tile:
+		1. check lock --> update tile start address of the global memory 
+		2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+		3. Process each tile --> different amount of elements, same as rectangular tile --> syncthreads for each level 
+		4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+		5. Update lock --> update next tile start address of the global memory
+	Hyperlane tiles that segLengthX == tileX, except the last hyperlane tile:
+		A loop iterate through all available tiles.
+			1. check lock 
+			2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+			3. Process each tile --> every level has the same amount of elements --> syncthreads for each level 
+			4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+			5. Update lock --> update next tile start address of the global memory
+*********************************************************
+This section requires much more extra work because the pos of the short tile is different at different row.
+Now, we assume the X axis is completely divided.
+	The last Hyperlane tile segLengthX <= tileX:
+		1. check lock 
+		2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+		3. Process each tile --> every level has the same amount of elements --> syncthreads for each level 
+		4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+		5. Update lock --> update next tile start address of the global memory
+*********************************************************
+	The last tile, half rectangular tile:
+		1. check lock  
+		2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+		3. Process each tile --> different amount of elements, same as rectangular tile --> syncthreads for each level 
+		4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+		5. Update lock
+		
+
+
+
