@@ -36,12 +36,13 @@ Start hyperlane
 2. tileY must be the integer times of tileX.
 3. If tileX != tileY, The first tile of each row has to depends on the completion of multiple tiles at the previous row. The number of tiles to be depent on is determined by tileY/tileX, which is also the offset between the index of a tile and the index of its dependt tile.
 4. The last tile is not the same size as the first tile because the last tile does not include the anti-diagonal level for the size of tileY. 
+5. If it is not LCS problem but some other wavefront loop problem, it is possible that we don't need to copy all the data from shared memory back to the global memory. 
 
 kernel structure: 
 	instead of a anti-diagonal of tiles, now we schedule a row of tiles to one kernel, and each kernel has only one block.
 
 Shared Memory: 
-	a. To avoid bank conflict issue, we perform memory reconstruction to have the same level elements stored consectively.
+	a. To avoid bank conflict issue, we perform memory reconstruction to have the same level elements stored consectively. (This is not a good option). Another better solution is to introduce odd number of dummy values to shift the array elements, in this code, maybe we can utilize padding values as the dummy values.
 	b. Because of the change of memory layout, the LCS dependency is also changed. We track down two variables for each element: level, index within each level. We use these two variables to calculate the related variables for the dependent elements and locate these elements in shared memory.
 
 Specefic manipulation:
@@ -111,4 +112,10 @@ Now, we assume the X axis is completely divided.
 		
 
 
-
+*********************************************************
+June 16
+********************************************************
+Done:
+	The first row of tiles are completed correctly and the update to the global memory can be fetched by the next row.
+Problem:
+	The other rows of tiles cannot be completed successfully. The complete global tables are not printed correctly.
