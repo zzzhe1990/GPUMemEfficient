@@ -7,7 +7,7 @@
 typedef unsigned long long int UINT;
 
 using namespace std;
-__device__ int row = 1;
+__device__ int row = 3;
 
 __device__ void moveToShare(int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int rowsize, int hightY, int segLengthX, int segLengthY){
 	//potential bank conflict for accessing the data of each anti-diagonal
@@ -140,6 +140,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	flagRead(curBatch, dev_lock, thread, tile, YoverX, xseg);
 	
 	if (thread == 0 && curBatch == row){
+//	if (thread == 0){
 		printf("Before computation. curBatch: %d, tile: %d, glbStartX: %d\n", curBatch, tile, glbStartX);
 		for(int i=0; i<colsize; i++){
 			for(int j=0; j<rowsize; j++){	
@@ -156,6 +157,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	__threadfence_block();
 	
 	if (thread == 0 && curBatch == row){	
+//	if (thread == 0){
 		for (int i=0; i<segLengthY; i++){
 			for (int j = 0; j<segLengthX; j++){
 				printf("%d ", table[i*segLengthX+j]);
@@ -186,6 +188,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 
 	
 	if (thread == 0 && curBatch==row){	
+//	if (thread == 0){
 		printf("After computation, in shared memory\n");
 		for (int i=0; i<segLengthY; i++){
 			for (int j = 0; j<segLengthX; j++){
@@ -201,6 +204,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	__syncthreads();
 
 	if (thread == 0 && curBatch == row){
+//	if (thread == 0){
 		printf("After computation. curBatch: %d, tile: %d, glbStartX: %d\n", curBatch, tile, glbStartX);
 		for(int i=0; i<colsize; i++){
 			for(int j=0; j<rowsize; j++){	
@@ -224,6 +228,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 //		printf("curBatch: %d, tile: %d, thread: %d is permit to read data from global.\n", curBatch, tile, thread);
 		
 		if (thread == 0 && curBatch == row){
+//		if (thread == 0){
 			printf("Before computation. curBatch: %d, tile: %d, xseg: %d, glbStartX: %d\n", curBatch, tile, xseg, glbStartX);
 			for(int i=0; i<colsize; i++){
 				for(int j=0; j<rowsize; j++){	
@@ -241,6 +246,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 
 
 		if (thread == 0 && curBatch == row){	
+//		if (thread == 0){
 			for (int i=0; i<segLengthY; i++){
 				for (int j = 0; j<segLengthX; j++){
 					printf("%d ", table[i*segLengthX+j]);
@@ -276,6 +282,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		arrX+=tileX;
 
 	if (thread == 0 && curBatch == row){	
+//	if (thread == 0){
 		printf("After computation, in shared memory\n");
 		for (int i=0; i<segLengthY; i++){
 			for (int j = 0; j<segLengthX; j++){
@@ -287,6 +294,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	}
 
 		if (thread == 0 && curBatch == row){
+//		if (thread == 0){
 			printf("After computation. curBatch: %d, tile: %d, glbStartX: %d\n", curBatch, tile, glbStartX);
 			for(int i=0; i<colsize; i++){
 				for(int j=0; j<rowsize; j++){	
@@ -305,6 +313,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	flagRead(curBatch, dev_lock, thread, xseg, YoverX, xseg);
 	
 	if (thread == 0 && curBatch == row){
+//	if (thread == 0){
 		printf("Before computation. curBatch: %d, tile: %d, glbStartX: %d\n", curBatch, tile, glbStartX);
 		for(int i=0; i<colsize; i++){
 			for(int j=0; j<rowsize; j++){	
@@ -321,6 +330,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	__threadfence_block();
 
 		if (thread == 0 && curBatch == row){
+//		if (thread == 0){
 			printf("last tile glbStartX: %d, rowsize: %d, hightY: %d\n", glbStartX, rowsize, hightY);	
 			for (int i=0; i<hightY; i++){
 				for (int j = 0; j<hightY; j++){
@@ -354,6 +364,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	__syncthreads();	
 	
 	if (thread == 0 && curBatch == row){	
+//	if (thread == 0){
 		printf("After computation, in shared memory\n");
 		for (int i=0; i<hightY; i++){
 			for (int j = 0; j<hightY; j++){
@@ -365,6 +376,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	}
 
 		if (thread == 0 && curBatch == row){
+//		if (thread == 0){
 			printf("After computation. curBatch: %d, tile: %d, glbStartX: %d\n", curBatch, tile, glbStartX);
 			for(int i=0; i<colsize; i++){
 				for(int j=0; j<rowsize; j++){	
@@ -396,7 +408,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	int colsize = paddY + n1;
 
 	int *dev_arr1, *dev_arr2;
-	int *dev_table, *dev_lock;
+	volatile int *dev_table, *dev_lock;
 
 	int *table;
 
@@ -414,7 +426,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	cudaMalloc(&dev_arr1, n1*sizeof(int));
 	cudaMalloc(&dev_arr2, n2*sizeof(int));
 
-	cudaMemset(dev_table, 0, tablesize * sizeof(int));
+	cudaMemset((void*)dev_table, 0, tablesize * sizeof(int));
 	cudaMemcpy(dev_arr1, arr1, n1*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(dev_arr2, arr2, n2*sizeof(int), cudaMemcpyHostToDevice);
 
@@ -430,8 +442,8 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	int yseg = (n2+tileY-1) / tileY;
 
 	cudaMalloc(&dev_lock, (yseg+1) * sizeof(int));	
-	cudaMemset(dev_lock, 0, (yseg + 1) * sizeof(int));
-	cudaMemset(dev_lock, xseg+1, sizeof(int));
+	cudaMemset((void*)dev_lock, 0, (yseg + 1) * sizeof(int));
+	cudaMemset((void*)dev_lock, xseg+1, sizeof(int));
 	cudaStream_t stream[numStream];
 	for (int s=0; s<numStream; s++)
 		cudaStreamCreate(&stream[s]);
@@ -449,10 +461,10 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	
 		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, hightY, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
 	}
-	
-	cudaMemcpy(&lcslength,&dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
-	cudaMemcpy(table, dev_table, colsize*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
-/*
+	cudaDeviceSynchronize();	
+	cudaMemcpy(&lcslength, (void*)&dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(table, (void*)dev_table, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
+
 	//display table
 	cout << "full table: " << endl;
 	for (int i=0; i<colsize; i++){
@@ -461,15 +473,15 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 		}
 		cout << endl;
 	}
-*/	
+	
 
 	for (int s=0; s<numStream; s++)
 		cudaStreamDestroy(stream[s]);
 	
 	cudaFree(dev_arr1);
 	cudaFree(dev_arr2);
-	cudaFree(dev_table);
-	cudaFree(dev_lock);
+	cudaFree((void*)dev_table);
+	cudaFree((void*)dev_lock);
 	delete[] table;
 
 	return lcslength;
