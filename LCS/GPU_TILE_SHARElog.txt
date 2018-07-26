@@ -119,3 +119,27 @@ Done:
 	The first row of tiles are completed correctly and the update to the global memory can be fetched by the next row.
 Problem:
 	The other rows of tiles cannot be completed successfully. The complete global tables are not printed correctly.
+
+
+********************************************************
+July 24
+********************************************************
+Bug Fixed:
+1. Address offset for glbStartX.
+2. Incorrect memory copy from global to share, and from share to global are caused by the parallel calculation of section hyperlane tiles. 
+	Previous: if (thread <= tileY){ for(int i=0; i<tileX; i++){ xxxx; __syncthreads(); }  }
+	This causes problem that some threads are not syncronized by __syncthreads().
+	Now: for(int i=0; i<tileX; i++){ if(thread<tileY){xxxx; __syncthreads(); }  }
+
+Progress:
+Until now, code works properly with one stream only and square tile only.
+
+*******************************************************
+July 26
+*******************************************************
+Bug Found:
+1. The current moveToShareRec and moveToGlobalRec requires more than 64K shared memory when tileY=128
+To solve this problem: instead of copying the entire row of data, only copy the data to be calculated to shared memory.
+It requires more operation and uncoalsced memory access.
+2. This bug may apply to the last tile also.
+3. Multiple streams cause memory segmentation fault.

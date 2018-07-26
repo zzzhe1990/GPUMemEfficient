@@ -83,7 +83,7 @@ int main(int argc, char **argv){
 	readInputData(str1, n1, n2, &arr1, &arr2);
 	
 	cout << "input data loaded" << endl;
-	displayInput(arr1, arr2, n1, n2);
+//	displayInput(arr1, arr2, n1, n2);
 
 	
 	struct timeval tbegin, tend;
