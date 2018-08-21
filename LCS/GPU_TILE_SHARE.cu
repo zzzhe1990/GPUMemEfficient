@@ -183,7 +183,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	
 	cudaMemcpy(&lcslength, &dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
 	cudaMemcpy(table, dev_table, (n1+poolsize)*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
-
+/*
 	//display table
 	cout << "full table: " << endl;
 	for (int i=0; i<n1+poolsize; i++){
@@ -192,7 +192,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 		}
 		cout << endl;
 	}
-	
+*/	
 
 	for (int s=0; s<numStream; s++)
 		cudaStreamDestroy(stream[s]);
