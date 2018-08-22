@@ -783,7 +783,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	//instead of calling kernels along anti-diagonals, we now schedule kernels for each row.
 	//We assume X axis is completly divided by tileX
 	for(int curBatch = 0; curBatch < yseg; curBatch++){
-		int curSMStream = curBatch % yseg;
+		int curSMStream = curBatch % numStream;
 		//int resY = n1 - curBatch * tileY;
 		int resX = (n2 - tileY) % tileX;
 		int curStartAddress = curBatch * tileY * rowsize;

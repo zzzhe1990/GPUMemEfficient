@@ -154,4 +154,14 @@ there is an error of 1 for the final result.
 
 Bug Found:
 1. Multiple Streams cause memory segmentation fault when the height of table is large and requires more than 15 streams.
-This implies the problem of running multiple kernels on the same stream. 
+This implies the problem of running multiple kernels on the same stream.
+
+********************************************************
+Aug 22
+********************************************************
+Work Done:
+1. Multiple streams bug is fixed. Caused by the incorrect calculation of the current stream ID. Instead of allocating all different lanes to 
+the separate streams, we have 15 streams only to fully occupy the 15 SMs and have all lanes allocated in a cyclic manner.
+
+Bug Remain:
+1. When sequence length = 2^13 and 2^14, the result returned by hyperlane code is larger than the expected value by 1. 
