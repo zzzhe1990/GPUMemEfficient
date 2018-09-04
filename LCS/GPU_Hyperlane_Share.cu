@@ -740,9 +740,9 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	volatile int *dev_table, *dev_lock;
 	int *lock;
 	size_t freeMem, totalMem;
-#ifdef DEBUG
+	
 	int *table = new int[colsize * rowsize];
-#endif
+	
 	cudaMemGetInfo(&freeMem, &totalMem);
 	int tablesize = colsize * rowsize;
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes.";
@@ -796,9 +796,9 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	}
 	cudaDeviceSynchronize();	
 	cudaMemcpy(&lcslength, (void*)&dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
-#ifdef DEBUG
 	cudaMemcpy(table, (void*)dev_table, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
 
+#ifdef DEBUG
 	//display table
 	cout << "grid size: " << blockPerGrid << ", block size: " << threadPerBlock << ", full table: " << endl;
 	for (int i=0; i<colsize; i++){
@@ -816,9 +816,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	cudaFree(dev_arr2);
 	cudaFree((void*)dev_table);
 	cudaFree((void*)dev_lock);
-#ifdef DEBUG	
 	delete[] table;
-#endif	
 	delete[] lock;
 
 	return lcslength;

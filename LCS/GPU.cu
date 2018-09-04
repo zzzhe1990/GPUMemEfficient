@@ -37,15 +37,15 @@ void checkGPUError(cudaError err){
 
 int LCS(int n1, int n2, int *arr1, int *arr2){
 	int lcslength;
-	int poolsize = 32;
-	int rowsize = poolsize + n2;
-	int colsize = poolsize + n1;
+	int paddsize = 1;
+	int rowsize = paddsize + n2;
+	int colsize = paddsize + n1;
 
 	int *dev_table, *dev_arr1, *dev_arr2;
 
-	//int *table;
+	int *table;
 
-	//table = new int[(n1+poolsize) * rowsize];
+	table = new int[colsize * rowsize];
 
 	size_t freeMem, totalMem;
 
@@ -68,7 +68,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	int curlevel = 1;
 	int curjobs = 1;
 	int startx, starty;
-	int threadPerBlock = 256, blockPerGrid;
+	int threadPerBlock = 32, blockPerGrid;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 
@@ -94,7 +94,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	
 		blockPerGrid = (numthreads + threadPerBlock - 1) / threadPerBlock;
 
-		GPU<<<blockPerGrid, threadPerBlock>>>(&dev_table[poolsize*rowsize+poolsize], dev_arr1, dev_arr2, startIdx, curjobs, rowsize, startx, starty);		
+		GPU<<<blockPerGrid, threadPerBlock>>>(&dev_table[paddsize*rowsize+paddsize], dev_arr1, dev_arr2, startIdx, curjobs, rowsize, startx, starty);		
 		
 		cudaDeviceSynchronize();		
 
@@ -102,12 +102,12 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	}
 
 	cudaMemcpy(&lcslength, &dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
-	//cudaMemcpy(table, dev_table, (n1+poolsize)*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(table, dev_table, (n1+paddsize)*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
 /*
 	//display table
 	cout << "full table: " << endl;
-	for (int i=0; i<n1+poolsize; i++){
-		for (int j=0; j<n2+poolsize; j++){
+	for (int i=0; i<n1+paddsize; i++){
+		for (int j=0; j<n2+paddsize; j++){
 			cout << table[i * rowsize + j] << " ";
 		}
 		cout << endl;
@@ -118,7 +118,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	cudaFree(dev_arr2);
 	cudaFree(dev_table);
 
-//	delete[] table;
+	delete[] table;
 
 	return lcslength;
 }

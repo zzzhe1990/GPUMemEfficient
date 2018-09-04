@@ -5,11 +5,12 @@
 #include<sys/time.h>
 
 typedef unsigned long long int UINT;
+const int MAXTHREADSPERBLOCK = 512;
 
 using namespace std;
 
 
-__global__ void GPU(const int tilesize, const int poolsize, const int maxThreads, 
+__global__ void GPU(const int tilesize, const int paddsize, const int maxThreads, 
 			int *dev_table, const int rowsize, const int maxlevel, int tileX, int lenY, int *dev_arr1, int *dev_arr2){
 	//This code has to ensure n2 size is the multiple of 128. And n2 is no smaller than n1, where n2 is row array size, n1 is colum array size
 	//on K40, tile size is max to 48K, which is 128*96; on pascal and volta, tile size is max to 64K which is 128*128
@@ -17,19 +18,11 @@ __global__ void GPU(const int tilesize, const int poolsize, const int maxThreads
 //	__shared__ int table[9216];
 
 	int thread = threadIdx.x;
-	int idx = thread;
-	int address = thread;
 	int curjobs = 0;
 	int curlevel = 1;
 	int startIdx, startx, starty;
-	int tableX = tileX + poolsize;
+	int tableX = tileX + paddsize;
 	int x,y;
-//	printf("thread: %d, idx: %d, address: %d, tableX: %d\n", thread, idx, address, tableX);
-//	while(idx < tilesize){
-//		table[idx] = dev_table[address];
-//		address += rowsize;
-//		idx += blockDim.x;
-//	}
 	
 	while (curlevel <= maxlevel){
 		if (curlevel <= lenY){
@@ -37,13 +30,13 @@ __global__ void GPU(const int tilesize, const int poolsize, const int maxThreads
 //			printf("curlevel: %d, lenY: %d, curjobs: %d, thread: %d\n", curlevel, lenY, curjobs, thread);
 		}
 
-		startx = poolsize + curlevel - 1;
-		starty = poolsize;
+		startx = paddsize + curlevel - 1;
+		starty = paddsize;
 
 		if (curlevel > tileX){
 			curjobs--;	
 			startx = tableX -1;
-			starty = poolsize + curlevel - tileX;
+			starty = paddsize + curlevel - tileX;
 
 //			printf("curlevel: %d, curjobs: %d, thread: %d\n", curlevel,  curjobs, thread);
 		}
@@ -53,11 +46,10 @@ __global__ void GPU(const int tilesize, const int poolsize, const int maxThreads
 			starty += thread;
 			startIdx = startx + starty * rowsize;
 			dev_table[startIdx] = max(dev_table[startIdx - 1], dev_table[startIdx - rowsize]);
-			x = startx - poolsize;
-			y = starty - poolsize;
+			x = startx - paddsize;
+			y = starty - paddsize;
 			if (dev_arr1[x] == dev_arr2[y])
 				dev_table[startIdx] = dev_table[startIdx - rowsize - 1] + 1;				
-//			printf("curlevel: %d, curjobs: %d, thread: %d, idx: %d, startx: %d, starty: %d, startIdx: %d\n", curlevel, curjobs, thread, idx, startx, starty, startIdx);
 		}
 
 		curlevel++;
@@ -77,17 +69,17 @@ void checkGPUError(cudaError err){
 
 int LCS(int n1, int n2, int *arr1, int *arr2){
 	int lcslength;
-	int poolsize = 32;
-	int tileX = 64;
-	int tileY = 96;
-	int rowsize = poolsize + n2;
-	int colsize = poolsize + n1;
+	int paddsize = 1;
+	int tileX = 256;
+	int tileY = 256;
+	int rowsize = paddsize + n2;
+	int colsize = paddsize + n1;
 
 	int *dev_table, *dev_arr1, *dev_arr2;
 
-	//int *table;
+	int *table;
 
-	//table = new int[(n1+poolsize) * rowsize];
+	table = new int[colsize * rowsize];
 
 	size_t freeMem, totalMem;
 
@@ -107,7 +99,8 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 
 	int maxthreads;
 	int maxlevel;
-	int threadPerBlock = tileY + poolsize, blockPerGrid = 1;
+	int threadPerBlock = tileY + paddsize;
+	int blockPerGrid = (threadPerBlock + MAXTHREADSPERBLOCK -1)/MAXTHREADSPERBLOCK;
 	int numStream = 32;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
@@ -142,8 +135,8 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 		
 		while ( startSegX >= 0 && startSegY <= yseg - 1){
 			//suppose n2 is the row size and the longer array
-			//int i = poolsize + startSegX * tileX;
-			//int j = poolsize + startSegY * tileY;
+			//int i = paddsize + startSegX * tileX;
+			//int j = paddsize + startSegY * tileY;
 			int i = startSegX * tileX;
 			int j = startSegY * tileY;
 			int startSegAdd = j * rowsize + i;
@@ -153,9 +146,9 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 			int lenY = min(resY, tileY);
 			maxlevel = tileX + lenY - 1;
 			maxthreads = min(tileX, lenY);
-			int tilesize = (tileX+poolsize) * (lenY+poolsize);
+			int tilesize = (tileX+paddsize) * (lenY+paddsize);
 
-			GPU<<<blockPerGrid, threadPerBlock, 0, stream[s]>>>(tilesize, poolsize, maxthreads, &dev_table[startSegAdd], rowsize, 
+			GPU<<<blockPerGrid, threadPerBlock, 0, stream[s]>>>(tilesize, paddsize, maxthreads, &dev_table[startSegAdd], rowsize, 
 										maxlevel, tileX, lenY, &dev_arr1[i], &dev_arr2[j]);
 		
 //			cout << "startSegX: " << startSegX << ", startSegY: " << startSegY << ", segIdx: " << segIdx << endl;
@@ -170,12 +163,12 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	}
 	
 	cudaMemcpy(&lcslength, &dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
-	//cudaMemcpy(table, dev_table, (n1+poolsize)*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(table, dev_table, (n1+paddsize)*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
 /*
 	//display table
 	cout << "full table: " << endl;
-	for (int i=0; i<n1+poolsize; i++){
-		for (int j=0; j<n2+poolsize; j++){
+	for (int i=0; i<n1+paddsize; i++){
+		for (int j=0; j<n2+paddsize; j++){
 			cout << table[i * rowsize + j] << " ";
 		}
 		cout << endl;
@@ -189,7 +182,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	cudaFree(dev_arr2);
 	cudaFree(dev_table);
 
-//	delete[] table;
+	delete[] table;
 
 	return lcslength;
 }
