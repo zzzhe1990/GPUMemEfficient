@@ -25,10 +25,10 @@ void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
 
 	for (int i=0; i<n1; i++)
 		inputfile >> (*arr1)[i];
-
+	inputfile.ignore(2^15, '\n');
 	for (int i=0; i<n2; i++)
 		inputfile >> (*arr2)[i];
-
+	inputfile.ignore(2^15, '\n');
 }
 
 void displayInput(int *arr1, int *arr2, int n1, int n2){

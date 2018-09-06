@@ -164,4 +164,11 @@ Work Done:
 the separate streams, we have 15 streams only to fully occupy the 15 SMs and have all lanes allocated in a cyclic manner.
 
 Bug Remain:
-1. When sequence length = 2^13 and 2^14, the result returned by hyperlane code is larger than the expected value by 1. 
+1. When sequence length = 2^13 and 2^14, the result returned by hyperlane code is larger than the expected value by 1.
+
+
+*******************************************************
+Sep 4
+******************************************************
+Hyperlane code only works when string size is no smaller than 128 because of the tiling.
+ 
