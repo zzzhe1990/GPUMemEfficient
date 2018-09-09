@@ -4,7 +4,6 @@
 #include<sstream>
 #include<string>
 #include<sys/time.h>
-#include "GPU_Hyperlane_Share.h"
 
 using namespace std;
 //#define DEBUG
@@ -25,10 +24,10 @@ void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
 
 	for (int i=0; i<n1; i++)
 		inputfile >> (*arr1)[i];
-	inputfile.ignore(2^15,'\n');
+	inputfile.ignore(2^15, '\n');
 	for (int i=0; i<n2; i++)
 		inputfile >> (*arr2)[i];
-	inputfile.ignore(2^15,'\n');
+	inputfile.ignore(2^15, '\n');
 }
 
 void displayInput(int *arr1, int *arr2, int n1, int n2){
@@ -43,20 +42,59 @@ void displayInput(int *arr1, int *arr2, int n1, int n2){
 	cout << endl;
 }
 
+int LCS(int n1, int n2, int *arr1, int *arr2, int *table){
+	int lcslength;
+
+	for (int i=0; i<=n2; i++)
+		table[i] = 0;
+
+	for (int i=0; i<(n1+1)*(n2+1); i+=(n2+1))
+		table[i] = 0;
+
+	for (int y=0; y < n1; y++){
+		for (int x=0; x < n2; x++){
+			int idx = x+1;
+			int idy = y+1;
+
+			if (arr1[x] == arr2[y]){
+				table[idy * (n2+1) + idx] = table[y * (n2+1) +x] + 1;
+			}
+			else{
+				table[idy * (n2+1) + idx] = max(table[idy * (n2+1) + x], table[y * (n2+1) + idx]);
+			}
+		}
+	}
+/*
+	//display table
+	cout << "full table: " << endl;
+	for (int i=0; i<n1; i++){
+		int idx = i+1;
+		for (int j=0; j<n2; j++){
+			int idy = j+1;
+			cout << table[idx * (n2+1) + idy] << " ";
+		}
+		cout << endl;
+	}
+*/	
+	lcslength = table[ (n1+1) * (n2+1) - 1];
+
+	return lcslength;
+}
+
+
 
 int main(int argc, char **argv){
 	int nn1, nn2;
-	if (argc !=3){
+	if (argc != 3){
 		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
 		exit(EXIT_FAILURE);
-	}	
+	}
 	else{
 		nn1 = atoi(argv[1]);
-		nn2 = atoi(argv[2]);	
+		nn2 = atoi(argv[2]);
 	}
-	
-	ostringstream convert1, convert2;
 
+	ostringstream convert1, convert2;
 	convert1 << nn1;
 	convert2 << nn2;
 
@@ -65,7 +103,7 @@ int main(int argc, char **argv){
 	filename1 = "str1_2_";
 	filename2 = "_str2_2_";	
 	fileformat = ".txt";
-	
+
 	filename.append(filename1.c_str());
 	filename.append(convert1.str());
 	filename.append(filename2.c_str());
@@ -79,21 +117,18 @@ int main(int argc, char **argv){
 	int n1, n2;
 	int *arr1, *arr2, *table;
 	int lcslength;	
-	int paddX = 3;
-	int paddY = 1;	
-
-	readInputData(str1, n1, n2, &arr1, &arr2);
 	
-	cout << "input data loaded" << endl;
+	readInputData(str1, n1, n2, &arr1, &arr2);
+
 //	displayInput(arr1, arr2, n1, n2);
 
-	table = new int[(n2+paddX) * (n1+paddY)];
+	table = new int[(n1+1) * (n2+1)];
 	
 	struct timeval tbegin, tend;
 
 	gettimeofday(&tbegin, NULL);
 	
-	lcslength = LCS(n1, n2, arr1, arr2, paddX, paddY, table);
+	lcslength = LCS(n1, n2, arr1, arr2, table);
 
 	gettimeofday(&tend, NULL);
 
@@ -102,23 +137,22 @@ int main(int argc, char **argv){
 	cout << "lcs length: " << lcslength << endl;
 	cout << "execution time: " << s << " second." << endl;
 #ifdef DEBUG
-	string outfile = "./Output/output_Hyperlane_";
+	string outfile = "./Output/output_LCS_";
 	outfile.append(convert1.str());
 	outfile.append(".txt");
 
-	std::ofstream output;
-	output.open(outfile.c_str());
+	std::ofstream output (outfile);
 
 	if (!output){
 		cout << "ERROR: output file cannot be opened!" << endl;
 		exit(EXIT_FAILURE);
 	}
-
+	
 	output << n1 << '\n';
-
+	
 	for (int i=0; i<n1; i++){
 		for (int j=0; j<n2; j++){
-			output << table[(i+paddY)*(n2+paddX) + (j+paddX)] << ' ';
+			output << table[(i+1)*(n2+1)+ (j+1)] << " ";
 		}
 		output << '\n';
 	}

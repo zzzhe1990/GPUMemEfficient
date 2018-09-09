@@ -102,7 +102,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2){
 	}
 
 	cudaMemcpy(&lcslength, &dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
-	cudaMemcpy(table, dev_table, (n1+paddsize)*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
+//	cudaMemcpy(table, dev_table, (n1+paddsize)*rowsize*sizeof(int), cudaMemcpyDeviceToHost);
 /*
 	//display table
 	cout << "full table: " << endl;

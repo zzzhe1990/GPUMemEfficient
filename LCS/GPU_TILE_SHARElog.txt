@@ -171,4 +171,15 @@ Bug Remain:
 Sep 4
 ******************************************************
 Hyperlane code only works when string size is no smaller than 128 because of the tiling.
+
+
+******************************************************
+Sep 9
+******************************************************
+Bug Fixed:
+1. Hyperlane GPU code is now working properly when string size is no smaller than 128.
+ -- The bug is caused by the incorrect for loop index in LCS.cpp code and incorrect string array index calculation in the last tile function of GPU_Hyperlane_share.cu
+
+
+
  
