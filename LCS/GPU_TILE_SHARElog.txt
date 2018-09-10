@@ -180,6 +180,12 @@ Bug Fixed:
 1. Hyperlane GPU code is now working properly when string size is no smaller than 128.
  -- The bug is caused by the incorrect for loop index in LCS.cpp code and incorrect string array index calculation in the last tile function of GPU_Hyperlane_share.cu
 
+******************************************************
+Sep 10
+*****************************************************
+Work Done:
+1. GPU_Hyperlane_Cache code is done. Tiling with the cache instead of shared memory.
+2. Optimizing the performance of GPU_Hyperlane_Share by removing redundant __syncthreads().
 
 
  

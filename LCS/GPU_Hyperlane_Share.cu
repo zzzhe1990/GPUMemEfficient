@@ -157,7 +157,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	int piece = tileY / tileX;
 
 	for (int p = 0; p < piece; p++){
-
+/*
 #ifdef DEBUG1
 #ifdef ALL
 		if (thread == 32 && curBatch == row ){	
@@ -184,10 +184,12 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			printf("\n");
 		}
 		__syncthreads();
-#endif		
+#endif	
+*/	
 		moveToShareRec(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
 		__syncthreads();
-		__threadfence_system();
+//		__threadfence_system();
+/*
 #ifdef DEBUG1
 #ifdef ALL	
 		if (thread == 32 && curBatch == row){	
@@ -216,24 +218,10 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif
+*/
 		//first tile is irregular, concurrency is changed from 1 to hightY
 		//the x length and y length of the first tile and the last tile are equal.
 		tileStartOffset = paddY * segLengthX + paddX;
-/*		for (int i=0; i<segLengthY; i++){
-			lvlStartAddress = tileStartOffset + i;
-		
-			if(thread <= i){
-				idx = lvlStartAddress + segLengthX * thread - thread;
-				idxx = arrX + (i - thread);
-				idxy = arrY + thread;
-				table[idx] = max(table[idx-1], table[idx-segLengthX]);
-				if(dev_arr1[idxx] == dev_arr2[idxy]){
-					table[idx] = table[idx-segLengthX-1] + 1;	
-				}	
-			}
-			__syncthreads();
-		}
-*/
 		//length Y > length X, diagonal first element starts from Y axis instead of X axis for calculating the address.
 		int concurrency;
 		for (int i=0; i<highY; i++){
@@ -251,6 +239,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			}
 			__syncthreads();
 		}
+/*
 #ifdef DEBUG1
 #ifdef ALL	
 		if (thread == 32 && curBatch==row){	
@@ -278,13 +267,13 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif
-
+*/
 		moveToGlobalRec(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
-		__threadfence_system();
-		__syncthreads();
+//		__threadfence_system();
+//		__syncthreads();
 
 
-#ifdef DEBUG
+#ifdef DEBUG1
 #ifdef ALL
 		if (thread == 32 && curBatch == row){
 #endif
@@ -313,7 +302,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		arrX += tileX;		
 		glbStartX += tileX;
 		highY -= tileX;
-		__syncthreads();
+//		__syncthreads();
 	}
 	//update the tile beginning pos for the next tile.
 //	glbStartX += (tileY + 1);
@@ -327,7 +316,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		flagRead(curBatch, dev_lock, thread, tile, YoverX, xseg);
 	
 //		printf("curBatch: %d, tile: %d, thread: %d is permit to read data from global.\n", curBatch, tile, thread);
-
+/*
 #ifdef DEBUG2
 #ifdef ALL		
 		if (thread == 0 && curBatch == row){
@@ -354,7 +343,8 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif	
-
+*/
+/*
 #ifdef DEBUG2
 #ifdef ALL
 		if (thread == 0 && curBatch == row && tile <= 3 ){	
@@ -381,30 +371,12 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			printf("\n");
 		}
 		__syncthreads();
-#endif		
+#endif	
+*/	
 		moveToShare(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY, paddX);
 		__syncthreads();
-		__threadfence_system();
+//		__threadfence_system();
 /*
-#ifdef DEBUG2
-#ifdef ALL		
-		if (thread == 0 && curBatch == row && tile <=3){
-#endif
-#ifndef ALL
-		if (thread == 0){
-#endif	
-			printf("Before computation global. curBatch: %d, tile: %d, xseg: %d, glbStartX: %d\n", curBatch, tile, xseg, glbStartX);
-			for(int i=0; i<segLengthY; i++){
-				for(int j=0; j<segLengthX; j++){	
-					printf("%d ", dev_table[glbStartX + i*rowsize+j - i]);
-				}
-				printf("\n");
-			}
-			printf("\n");
-		}
-#endif
-*/	
-
 #ifdef DEBUG2
 #ifdef ALL
 		if (thread == 0 && curBatch == row && tile <= 3 ){	
@@ -436,7 +408,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif		
-
+*/
 		lvlStartAddress = tileStartOffset;
 		for (int i=0; i<tileX; i++){
 //this is expensive especially when tileX is large. However, if we put if statement outside the loop, we face syncthreads issue.
@@ -453,7 +425,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			}
 			__syncthreads();
 		}
-
+/*
 #ifdef DEBUG2
 #ifdef ALL
 	if (thread == 0 && curBatch == row && tile<=3){	
@@ -485,13 +457,13 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	}
 	__syncthreads();
 #endif
-
+*/
 		//need modification, only copy the new updated elements back to the global memory. Also modify moveToGlobalRec
 		moveToGlobal(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);
 //		moveToGlobal(&table[paddX], dev_table, glbStartX + paddX, thread, tileX, rowsize, segLengthX, segLengthY);
 		
-		__threadfence_system();
-		__syncthreads();
+//		__threadfence_system();
+//		__syncthreads();
 
 #ifdef DEBUG2
 #ifdef ALL
@@ -521,7 +493,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		//	}
 			printf("\n");
 		}
-		__syncthreads();
+//		__syncthreads();
 #endif
 
 		//update the tile beginning pos for the next tile.
@@ -539,7 +511,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	highY = tileX;
 	
 	for (int p=0; p<piece; p++){
-
+/*
 #ifdef DEBUG3
 #ifdef ALL	
 		if (thread == 0 && curBatch == row){
@@ -574,11 +546,11 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif
-	
+*/	
 		moveToShareLast(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
 		__syncthreads();
-		__threadfence_block();
-
+//		__threadfence_block();
+/*
 #ifdef DEBUG3
 #ifdef ALL
 			if (thread == 0 && curBatch == row){
@@ -614,7 +586,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			}
 			__syncthreads();
 #endif
-
+*/
 		//last tile is irregular, concurrency is changed from hightY-1 to 1
 		//the x length and y length of the first tile and the last tile are equal.
 		int concurrency;
@@ -637,8 +609,8 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 	
 		moveToGlobalLast(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
-		__syncthreads();	
-
+//		__syncthreads();	
+/*
 #ifdef DEBUG3
 #ifdef ALL	
 		if (thread == 0 && curBatch == row){	
@@ -674,7 +646,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif
-
+*/
 
 #ifdef DEBUG3
 #ifdef ALL
@@ -686,15 +658,15 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			printf("After computation. global memory. curBatch: %d, tile: %d, p: %d, glbStartX: %d\n", curBatch, tile, p, glbStartX);
 			//for(int i=0; i<segLengthY; i++){
 				for(int j=0; j<segLengthX; j++){	
-					printf("%d ", dev_table[glbStartX + (segLengthY - highY - 1) * rowsize+j]);
+					printf("%d ", dev_table[glbStartX + rowsize+j]);
 				}
 				printf("\n");
 				for(int j=0; j<segLengthX; j++){	
-					printf("%d ", dev_table[glbStartX + (segLengthY - highY ) * rowsize+j]);
+					printf("%d ", dev_table[glbStartX + 2 * rowsize+j]);
 				}
 				printf("\n");
 				for(int j=0; j<segLengthX; j++){	
-					printf("%d ", dev_table[glbStartX + (segLengthY - highY + 1) * rowsize+j]);
+					printf("%d ", dev_table[glbStartX + (segLengthY - highY) * rowsize+j]);
 				}
 				printf("\n");
 				for(int j=0; j<segLengthX; j++){	
