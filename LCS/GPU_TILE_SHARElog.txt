@@ -188,4 +188,9 @@ Work Done:
 2. Optimizing the performance of GPU_Hyperlane_Share by removing redundant __syncthreads().
 
 
- 
+*****************************************************
+Sep 11
+*****************************************************
+New Work Not Done Yet:
+Further improve the efficiency of GPU_Hyperlane_Share by modifying the moveToShare() and moveToGlobal(). 
+Without the modification, GPU_Hyperlane_Share performs worse than GPU_Hyperlane_Cache on GTX 1080 ti. 

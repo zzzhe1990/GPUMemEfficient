@@ -12,21 +12,44 @@
 using namespace std;
 __device__ int row = 0;
 
-__device__ void moveToShare(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int rowsize, int segLengthX, int segLengthY, int paddX){
+__device__ void moveToShare(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int segLengthX, int segLengthY, int paddX){
 	//potential bank conflict for accessing the data of each anti-diagonal
 	//to avoid bank conflict, have to adjust the memory layout by introducing dummy elements.
 	//padding elements can be used as the dummy elements, but the number of padding of each dimension has to be an odd number.
+/*
 	int pos = tileAddress + thread;
 	int idx = thread;
+
 	if (thread < segLengthX){
-//	if (thread < paddX){
 		for (int i=0; i<segLengthY; i++){
-//			printf("thread: %d, segLengthX: %d, pos: %d, idx: %d\n", thread, segLengthX, pos, idx);			
-			
 			table[idx] = dev_table[pos];
 			pos += (rowsize - 1);
 			idx += segLengthX;
 		}	
+	}
+
+	if (thread < segLengthX)
+		table[idx] = dev_table[pos];
+	pos += (rowsize - 1);
+	idx += segLengthX;
+	if (thread < paddX){
+		for (int i=1; i<segLengthY; i++){
+			table[idx] = dev_table[pos];
+			pos += (rowsize - 1);
+			idx += segLengthX;
+		}
+	}
+*/
+	int idx = thread % 32;
+	int warpidx = thread / 32;
+	int glbpos = tileAddress + (rowsize - 1) + warpidx * (rowsize - 1) + idx;
+	int shrpos = segLengthX + warpidx * segLengthX + idx;
+	if (thread < segLengthX)
+		table[thread] = dev_table[tileAddress + thread];
+	for (; warpidx < tileY; warpidx+=32){
+		table[shrpos] = dev_table[glbpos];
+		shrpos += (32 * segLengthX);
+		glbpos += (32 * (rowsize - 1) );
 	}
 }
 
@@ -121,7 +144,7 @@ __device__ void flagWrite(int curBatch, volatile int *dev_lock, int thread){
 	__syncthreads();
 }
 
-__global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volatile int *dev_lock, int curBatch, int curStartAddress, int rowtiles, int resX, int tileX, int tileY, int paddX, int paddY, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int YoverX, int n1, int n2){ 
+__global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volatile int *dev_lock, int curBatch, int curStartAddress, int rowtiles, int resX, int tileX, int tileY, int paddX, int paddY, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int YoverX, int n1, int n2, int xsegMod){ 
 	//We assume row size n2 is the multiple of 32 and can be completely divided by tileX.
 	//on K40, tile size is max to 48K, which is 128*96; on pascal and volta, tile size is max to 64K which is 128*128
 	//This code, length of x axis cannot be larger than y axis for each tile.
@@ -373,7 +396,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		__syncthreads();
 #endif	
 */	
-		moveToShare(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY, paddX);
+		moveToShare(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, paddX);
 		__syncthreads();
 //		__threadfence_system();
 /*
@@ -697,6 +720,8 @@ void checkGPUError(cudaError err){
 }
 
 int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
+	cudaSetDevice(0);
+	
 	int lcslength;
 
 	//tileY must be larger than tileX
@@ -725,15 +750,17 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	cudaMemcpy(dev_arr1, arr1, n1*sizeof(int), cudaMemcpyHostToDevice);
 	cudaMemcpy(dev_arr2, arr2, n2*sizeof(int), cudaMemcpyHostToDevice);
 
-	int threadPerBlock = max(tileY + 32, tileX + 32);
+//	int threadPerBlock = max(tileY + 32, tileX + 32);
+	int threadPerBlock = 1024;
 	int blockPerGrid = 1;
-	int numStream = 15;
+	int numStream = 28;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
 	//For hyperlane tiles, if tileX!=tileY, the X length of the first tile and the last tile are equal to tileY.
 //	int xseg = (n1+tileX-1) / tileX;
 	int xseg = ((n1-tileY) + tileX - 1) / tileX + 2;
+	int xsegMod = (n1-tileY) % tileX;
 	int yseg = (n2+tileY-1) / tileY;
 
 	lock = new int[yseg+1];
@@ -758,7 +785,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 		int rowStartOffset = paddY * rowsize + paddX;
 		int rowtiles = xseg + 1;
 //		cout << endl << "curBatch: " << curBatch << ", yseg: " << yseg << endl;	
-		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
+		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2, xsegMod);			
 //		GPU<<<blockPerGrid, threadPerBlock>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
 //		cudaDeviceSynchronize();
 	}

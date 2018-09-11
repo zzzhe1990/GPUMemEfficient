@@ -95,7 +95,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			}
 			__syncthreads();
 		}
-		__threadfence_system();
+//		__threadfence_system();
 #ifdef DEBUG1
 #ifdef ALL
 		if (thread == 32 && curBatch == row){
@@ -125,7 +125,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		arrX += tileX;		
 		glbStartX += tileX;
 		highY -= tileX;
-		__syncthreads();
+//		__syncthreads();
 	}
 	//update the tile beginning pos for the next tile.
 //	glbStartX += (tileY + 1);
@@ -154,7 +154,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			lvlStartAddress += 1;
 			__syncthreads();
 		}
-		__threadfence_system();
+//		__threadfence_system();
 
 #ifdef DEBUG2
 #ifdef ALL
@@ -221,7 +221,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			tileStartOffset += rowsize;
 			__syncthreads();
 		}
-		__threadfence_system();	
+//		__threadfence_system();	
 
 #ifdef DEBUG3
 #ifdef ALL
@@ -272,6 +272,7 @@ void checkGPUError(cudaError err){
 }
 
 int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
+	cudaSetDevice(0);
 	int lcslength;
 
 	//tileY must be larger than tileX
@@ -302,7 +303,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 
 	int threadPerBlock = max(tileY, tileX);
 	int blockPerGrid = 1;
-	int numStream = 15;
+	int numStream = 28;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
