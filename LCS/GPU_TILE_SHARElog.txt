@@ -193,4 +193,22 @@ Sep 11
 *****************************************************
 New Work Not Done Yet:
 Further improve the efficiency of GPU_Hyperlane_Share by modifying the moveToShare() and moveToGlobal(). 
-Without the modification, GPU_Hyperlane_Share performs worse than GPU_Hyperlane_Cache on GTX 1080 ti. 
+Without the modification, GPU_Hyperlane_Share performs worse than GPU_Hyperlane_Cache on GTX 1080 ti.
+
+
+****************************************************
+Sep 13
+*****************************************************
+Work Done:
+Optimization is applied to both moveToShare() and moveToGlobal().
+
+moveToShare(): new modification boost the performance because the new implementation performs much less data movement
+moveToGlobal(): new modification does not give performance improvement.
+
+
+**************************************************************************************************
+The hyperlane tiles study on the GPU for LCS problem is basically completed.
+
+
+
+

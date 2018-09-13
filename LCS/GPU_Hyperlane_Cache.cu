@@ -305,7 +305,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	int blockPerGrid = 1;
 	int numStream = 28;
 
-	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
+	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 
 	//For hyperlane tiles, if tileX!=tileY, the X length of the first tile and the last tile are equal to tileY.
 //	int xseg = (n1+tileX-1) / tileX;

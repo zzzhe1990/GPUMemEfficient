@@ -5,6 +5,7 @@
 #include<sys/time.h>
 
 //#define ALL
+//#define DEBUG
 //#define DEBUG1
 //#define DEBUG2
 //#define DEBUG3
@@ -12,32 +13,19 @@
 using namespace std;
 __device__ int row = 0;
 
-__device__ void moveToShare(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int segLengthX, int segLengthY, int paddX){
+__device__ void moveToShare(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int segLengthX, int segLengthY, int warpbatch){
 	//potential bank conflict for accessing the data of each anti-diagonal
 	//to avoid bank conflict, have to adjust the memory layout by introducing dummy elements.
 	//padding elements can be used as the dummy elements, but the number of padding of each dimension has to be an odd number.
 /*
 	int pos = tileAddress + thread;
 	int idx = thread;
-
 	if (thread < segLengthX){
 		for (int i=0; i<segLengthY; i++){
 			table[idx] = dev_table[pos];
 			pos += (rowsize - 1);
 			idx += segLengthX;
 		}	
-	}
-
-	if (thread < segLengthX)
-		table[idx] = dev_table[pos];
-	pos += (rowsize - 1);
-	idx += segLengthX;
-	if (thread < paddX){
-		for (int i=1; i<segLengthY; i++){
-			table[idx] = dev_table[pos];
-			pos += (rowsize - 1);
-			idx += segLengthX;
-		}
 	}
 */
 	int idx = thread % 32;
@@ -46,29 +34,46 @@ __device__ void moveToShare(volatile int *table, volatile int *dev_table, int ti
 	int shrpos = segLengthX + warpidx * segLengthX + idx;
 	if (thread < segLengthX)
 		table[thread] = dev_table[tileAddress + thread];
-	for (; warpidx < tileY; warpidx+=32){
+	for (; warpidx < tileY; warpidx+=warpbatch){
 		table[shrpos] = dev_table[glbpos];
-		shrpos += (32 * segLengthX);
-		glbpos += (32 * (rowsize - 1) );
+		shrpos += (warpbatch * segLengthX);
+		glbpos += (warpbatch * (rowsize - 1) );
 	}
+
 }
 
-__device__ void moveToGlobal(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int rowsize, int segLengthX, int segLengthY){
-	int pos = tileAddress + thread;
-	int idx = thread;
+__device__ void moveToGlobal(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int paddX, int segLengthX, int segLengthY, int warpbatch){
+/*
+	int idx = thread + segLengthX + paddX;
+	int pos = tileAddress + (rowsize-1) + paddX + thread;
 	//If y dimension cannot be completely divided by tileY, this code causes errors.
-	if (thread < segLengthX){
-		for (int i=0; i<segLengthY; i++){
+	if (thread < tileX){
+		for (int i=0; i<tileY; i++){
 			dev_table[pos] = table[idx];
 			pos += (rowsize - 1);
 			idx += segLengthX;
 		}	
 	}
+*/
+	int idx = thread % 32;
+	int warpidx = thread / 32;
+	int glbpos = tileAddress + (rowsize - 1) + paddX + warpidx * (rowsize - 1);
+	int shrpos = segLengthX + paddX + warpidx * segLengthX;
+
+	for (; warpidx < tileY; warpidx += warpbatch){
+		for (int i = idx; i < tileX; i += 32){
+			dev_table[glbpos + i] = table[shrpos + i];	
+		}
+		shrpos += (warpbatch * segLengthX);
+		glbpos += (warpbatch * (rowsize - 1) );
+	}
+
 }
 
-__device__ void moveToShareRec(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int rowsize, int segLengthX, int segLengthY){
+__device__ void moveToShareRec(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int segLengthX, int segLengthY, int warpbatch){
 	//This function is designed for the first and the last tiles, which can be treate as rectangular but not hyperlane.
 	//Rectangular tile does not have bank conflict issue.
+	
 	int pos = tileAddress + thread;
 	int idx = thread;
 	if (thread < segLengthX){
@@ -80,11 +85,12 @@ __device__ void moveToShareRec(volatile int *table, volatile int *dev_table, int
 	}
 }
 
-__device__ void moveToGlobalRec(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int rowsize, int segLengthX, int segLengthY){
-	int pos = tileAddress + thread;
-	int idx = thread;
-	if (thread < segLengthX){
-		for (int i=0; i<segLengthY; i++){
+
+__device__ void moveToGlobalRec(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int segLengthX, int segLengthY, int paddX){
+	int pos = tileAddress + rowsize + paddX + thread;
+	int idx = segLengthX + paddX + thread;
+	if (thread < tileX){
+		for (int i=0; i<tileY; i++){
 			dev_table[pos] = table[idx];
 			pos += rowsize;
 			idx += segLengthX;
@@ -92,46 +98,16 @@ __device__ void moveToGlobalRec(volatile int *table, volatile int *dev_table, in
 	}	
 }
 
-__device__ void moveToShareLast(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int rowsize, int segLengthX, int segLengthY){
-	//This function is designed for the last tiles, which can be treate as rectangular but not hyperlane.
-	//Rectangular tile does not have bank conflict issue.
-	int pos = tileAddress + thread;
-	int idx = thread;
-	if (thread < segLengthX){
-		for (int i=0; i<segLengthY; i++){
-			table[idx] = dev_table[pos];
-			pos += rowsize;
-			idx += segLengthX;
-		}	
-	}
-}
-
-__device__ void moveToGlobalLast(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int rowsize, int segLengthX, int segLengthY){
-	int pos = tileAddress + thread;
-	int idx = thread;
-	if (thread < segLengthX){
-		for (int i=0; i<segLengthY; i++){
-			dev_table[pos] = table[idx];
-			pos += rowsize;
-			idx += segLengthX;
-		}
-	}
-}
 
 __device__ void flagRead(int curBatch, volatile int *dev_lock, int thread, int idx, int YoverX, int xseg){
 	if (thread == 0){
 		int limit = min(idx+YoverX, xseg);
 /*
-#ifdef DEBUG		
 		printf("curBatch: %d, tile: %d, limit: %d, dev_lock[curBatch]: %d\n", curBatch, idx, limit, dev_lock[curBatch]);
-#endif
 */
 	 	while(dev_lock[curBatch] < limit){
 		}
-/*
-#ifdef DEBUG
-		printf("curBatch: %d, tile: %d, is permit to proceed, dev_lock[curBatch]: %d\n", curBatch, idx, dev_lock[curBatch]);
-#endif
+/*		printf("curBatch: %d, tile: %d, is permit to proceed, dev_lock[curBatch]: %d\n", curBatch, idx, dev_lock[curBatch]);
 */
 	}
 	__syncthreads();
@@ -144,7 +120,7 @@ __device__ void flagWrite(int curBatch, volatile int *dev_lock, int thread){
 	__syncthreads();
 }
 
-__global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volatile int *dev_lock, int curBatch, int curStartAddress, int rowtiles, int resX, int tileX, int tileY, int paddX, int paddY, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int YoverX, int n1, int n2, int xsegMod){ 
+__global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volatile int *dev_lock, int curBatch, int curStartAddress, int rowtiles, int resX, int tileX, int tileY, int paddX, int paddY, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int YoverX, int n1, int n2, int warpbatch){ 
 	//We assume row size n2 is the multiple of 32 and can be completely divided by tileX.
 	//on K40, tile size is max to 48K, which is 128*96; on pascal and volta, tile size is max to 64K which is 128*128
 	//This code, length of x axis cannot be larger than y axis for each tile.
@@ -180,7 +156,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	int piece = tileY / tileX;
 
 	for (int p = 0; p < piece; p++){
-/*
+
 #ifdef DEBUG1
 #ifdef ALL
 		if (thread == 32 && curBatch == row ){	
@@ -208,11 +184,11 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif	
-*/	
-		moveToShareRec(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
+	
+		moveToShareRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, warpbatch);				
 		__syncthreads();
 //		__threadfence_system();
-/*
+
 #ifdef DEBUG1
 #ifdef ALL	
 		if (thread == 32 && curBatch == row){	
@@ -241,7 +217,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif
-*/
+
 		//first tile is irregular, concurrency is changed from 1 to hightY
 		//the x length and y length of the first tile and the last tile are equal.
 		tileStartOffset = paddY * segLengthX + paddX;
@@ -262,7 +238,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			}
 			__syncthreads();
 		}
-/*
+
 #ifdef DEBUG1
 #ifdef ALL	
 		if (thread == 32 && curBatch==row){	
@@ -290,8 +266,8 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif
-*/
-		moveToGlobalRec(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
+
+		moveToGlobalRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, paddX);				
 //		__threadfence_system();
 //		__syncthreads();
 
@@ -396,9 +372,9 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		__syncthreads();
 #endif	
 */	
-		moveToShare(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, paddX);
+		moveToShare(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, warpbatch);
 		__syncthreads();
-//		__threadfence_system();
+		__threadfence_system();
 /*
 #ifdef DEBUG2
 #ifdef ALL
@@ -482,7 +458,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 #endif
 */
 		//need modification, only copy the new updated elements back to the global memory. Also modify moveToGlobalRec
-		moveToGlobal(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);
+		moveToGlobal(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, paddX, segLengthX, segLengthY, warpbatch);
 //		moveToGlobal(&table[paddX], dev_table, glbStartX + paddX, thread, tileX, rowsize, segLengthX, segLengthY);
 		
 //		__threadfence_system();
@@ -534,7 +510,6 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	highY = tileX;
 	
 	for (int p=0; p<piece; p++){
-/*
 #ifdef DEBUG3
 #ifdef ALL	
 		if (thread == 0 && curBatch == row){
@@ -568,12 +543,11 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			printf("\n");
 		}
 		__syncthreads();
-#endif
-*/	
-		moveToShareLast(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
+#endif	
+		moveToShareRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, warpbatch);				
 		__syncthreads();
 //		__threadfence_block();
-/*
+
 #ifdef DEBUG3
 #ifdef ALL
 			if (thread == 0 && curBatch == row){
@@ -609,7 +583,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			}
 			__syncthreads();
 #endif
-*/
+
 		//last tile is irregular, concurrency is changed from hightY-1 to 1
 		//the x length and y length of the first tile and the last tile are equal.
 		int concurrency;
@@ -631,9 +605,8 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 			__syncthreads();
 		}
 	
-		moveToGlobalLast(&table[0], dev_table, glbStartX, thread, tileX, rowsize, segLengthX, segLengthY);				
-//		__syncthreads();	
-/*
+		moveToGlobalRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, paddX);				
+
 #ifdef DEBUG3
 #ifdef ALL	
 		if (thread == 0 && curBatch == row){	
@@ -641,6 +614,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 #ifndef ALL
 		if (thread == 0){
 #endif	
+			__syncthreads();
 			printf("After computation, in shared memory\n");
 			//for (int i=0; i<segLengthY; i++){
 				{	
@@ -669,7 +643,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 		__syncthreads();
 #endif
-*/
+
 
 #ifdef DEBUG3
 #ifdef ALL
@@ -720,8 +694,7 @@ void checkGPUError(cudaError err){
 }
 
 int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
-	cudaSetDevice(0);
-	
+	cudaSetDevice(0);	
 	int lcslength;
 
 	//tileY must be larger than tileX
@@ -754,13 +727,13 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	int threadPerBlock = 1024;
 	int blockPerGrid = 1;
 	int numStream = 28;
+	int warpbatch = threadPerBlock / 32;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
 	//For hyperlane tiles, if tileX!=tileY, the X length of the first tile and the last tile are equal to tileY.
 //	int xseg = (n1+tileX-1) / tileX;
 	int xseg = ((n1-tileY) + tileX - 1) / tileX + 2;
-	int xsegMod = (n1-tileY) % tileX;
 	int yseg = (n2+tileY-1) / tileY;
 
 	lock = new int[yseg+1];
@@ -785,8 +758,9 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 		int rowStartOffset = paddY * rowsize + paddX;
 		int rowtiles = xseg + 1;
 //		cout << endl << "curBatch: " << curBatch << ", yseg: " << yseg << endl;	
-		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2, xsegMod);			
+		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2, warpbatch);			
 //		GPU<<<blockPerGrid, threadPerBlock>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
+		checkGPUError( cudaGetLastError() );
 //		cudaDeviceSynchronize();
 	}
 	cudaMemcpy(&lcslength, (void*)&dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
