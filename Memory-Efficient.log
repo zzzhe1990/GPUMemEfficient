@@ -1,0 +1,7 @@
+*******************************************
+Sep 18
+*******************************************
+Primary version of 2D-SOR is completed.
+padding size of 1 is added to the four edges of the SOR table.
+
+To get more acurate execution run time, repeat the same calculation 100 times.
