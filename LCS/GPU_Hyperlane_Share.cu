@@ -187,7 +187,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 	
 		moveToShareRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, warpbatch);				
 		__syncthreads();
-//		__threadfence_system();
+		__threadfence_system();
 
 #ifdef DEBUG1
 #ifdef ALL	
@@ -268,7 +268,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 #endif
 
 		moveToGlobalRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, paddX);				
-//		__threadfence_system();
+		__threadfence_system();
 //		__syncthreads();
 
 
@@ -374,7 +374,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 */	
 		moveToShare(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, warpbatch);
 		__syncthreads();
-//		__threadfence_system();
+		__threadfence_system();
 /*
 #ifdef DEBUG2
 #ifdef ALL
@@ -461,7 +461,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		moveToGlobal(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, paddX, segLengthX, segLengthY, warpbatch);
 //		moveToGlobal(&table[paddX], dev_table, glbStartX + paddX, thread, tileX, rowsize, segLengthX, segLengthY);
 		
-//		__threadfence_system();
+		__threadfence_system();
 //		__syncthreads();
 
 #ifdef DEBUG2
@@ -546,7 +546,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 #endif	
 		moveToShareRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, warpbatch);				
 		__syncthreads();
-//		__threadfence_block();
+		__threadfence_system();
 
 #ifdef DEBUG3
 #ifdef ALL
@@ -606,7 +606,7 @@ __global__ void GPU(volatile int *dev_table, int *dev_arr1, int *dev_arr2, volat
 		}
 	
 		moveToGlobalRec(&table[0], dev_table, glbStartX, thread, tileX, tileY, rowsize, segLengthX, segLengthY, paddX);				
-
+		__threadfence_system();
 #ifdef DEBUG3
 #ifdef ALL	
 		if (thread == 0 && curBatch == row){	
