@@ -247,7 +247,7 @@ void SOR(int n1, int n2, int *table){
 	cudaSetDevice(0);
 	int paddsize = 1;
 	//tileY must be larger than tileX
-	int tileX = 256;
+	int tileX = 128;
 	int tileY = 1024;
 	int rowsize = paddsize * 2 + n2;
 	int colsize = paddsize * 2 + n1;

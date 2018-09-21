@@ -249,7 +249,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	int lcslength;
 
 	//tileY must be larger than tileX
-	int tileX = 128;
+	int tileX = 256;
 	int tileY = 1024;
 	int rowsize = paddX + n2;
 	int colsize = paddY + n1;
@@ -257,13 +257,13 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	int *dev_arr1, *dev_arr2;
 	volatile int *dev_table, *dev_lock;
 	int *lock;
-	size_t freeMem, totalMem;
-	
-	
-	cudaMemGetInfo(&freeMem, &totalMem);
 	int tablesize = colsize * rowsize;
+#ifdef DEBUG	
+	size_t freeMem, totalMem;
+	cudaMemGetInfo(&freeMem, &totalMem);
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes.";
 	cout << "colsize: " << colsize << ", rowsize: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
+#endif
 	cudaError err = cudaMalloc(&dev_table, tablesize * sizeof(int));
 	checkGPUError(err);
 	
@@ -328,12 +328,11 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	for (int s=0; s<numStream; s++)
 		cudaStreamDestroy(stream[s]);
 	
-	cudaFree(dev_arr1);
 	cudaFree(dev_arr2);
 	cudaFree((void*)dev_table);
 	cudaFree((void*)dev_lock);
 	delete[] lock;
-
+	cudaFree(dev_arr1);
 	return lcslength;
 }
 

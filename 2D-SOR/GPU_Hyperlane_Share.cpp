@@ -7,6 +7,7 @@
 #include "GPU.h"
 using namespace std;
 //#define DEBUG
+#define batchexe
 
 void readInputData(string str1, int &n1, int &n2, int **arr){
 	ifstream inputfile;
@@ -80,7 +81,10 @@ int main(int argc, char **argv){
 	struct timeval tbegin, tend;
 
 	gettimeofday(&tbegin, NULL);
-	
+
+#ifdef batchexe
+	for (int i=0; i<100; i++)
+#endif	
 	SOR(n1, n2, arr);
 
 	gettimeofday(&tend, NULL);

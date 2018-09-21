@@ -706,13 +706,13 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	int *dev_arr1, *dev_arr2;
 	volatile int *dev_table, *dev_lock;
 	int *lock;
-	size_t freeMem, totalMem;
-	
-	
-	cudaMemGetInfo(&freeMem, &totalMem);
 	int tablesize = colsize * rowsize;
+#ifdef DEBUG	
+	size_t freeMem, totalMem;
+	cudaMemGetInfo(&freeMem, &totalMem);
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes.";
 	cout << "colsize: " << colsize << ", rowsize: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
+#endif
 	cudaError err = cudaMalloc(&dev_table, tablesize * sizeof(int));
 	checkGPUError(err);
 	
@@ -785,6 +785,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	cudaFree((void*)dev_table);
 	cudaFree((void*)dev_lock);
 	delete[] lock;
+	cudaDeviceReset();
 
 	return lcslength;
 }

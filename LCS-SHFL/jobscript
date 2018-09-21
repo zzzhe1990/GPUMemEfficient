@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#PBS -q accq
+#PBS -l select=1:ncpus=12:mem=40GB:ngpus=1:cpu_model=E5-2620v3
+#PBS -l walltime=3:00:00
+#PBS -m ea
+#PBS -o /wsu/home/et/et80/et8023/ApproxAlgorithm/gpu/Print_Results/output_file_K40
+#PBS -e /wsu/home/et/et80/et8023/ApproxAlgorithm/gpu/Print_Results/error_file_K40F${var3}
+
+echo Hostname: 
+echo $HOSTNAME
+echo environment arguments:
+echo $var1 $var2 $var3 $var4
+   
+/wsu/home/et/et80/et8023/ApproxAlgorithm/gpu/run ${var1} ${var2} ${var3} ${var4} > /wsu/home/et/et80/et8023/ApproxAlgorithm/gpu/Print_Results/output_file_K40Dim${var4}F${var3}
+    #/wsu/home/et/et80/et8023/ApproxAlgorithm/mpi/run $var1 $var2 $VAL $TH

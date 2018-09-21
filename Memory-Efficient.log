@@ -4,4 +4,17 @@ Sep 18
 Primary version of 2D-SOR is completed.
 padding size of 1 is added to the four edges of the SOR table.
 
-To get more acurate execution run time, repeat the same calculation 100 times.
+To get more acurate execution run time, repeat the same calculation 100 times
+
+
+
+********************************************
+Sep 21
+**********************************************
+Smith Waterman code is completed.
+
+GPU_Hyperlane_Cache code does not work when string size is smaller than 2^10.
+
+For performance comparison:
+1. Exclude memory copy when comparing Hyperlane_Share to Hyperlane_Cache.
+2. Include memory copy when comparing GPU code to CPU code.

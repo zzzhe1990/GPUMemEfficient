@@ -102,13 +102,8 @@ __device__ void moveToGlobalRec(volatile int *table, volatile int *dev_table, in
 __device__ void flagRead(int curBatch, volatile int *dev_lock, int thread, int idx, int YoverX, int xseg){
 	if (thread == 0){
 		int limit = min(idx+YoverX, xseg);
-/*
-		printf("curBatch: %d, tile: %d, limit: %d, dev_lock[curBatch]: %d\n", curBatch, idx, limit, dev_lock[curBatch]);
-*/
 	 	while(dev_lock[curBatch] < limit){
 		}
-/*		printf("curBatch: %d, tile: %d, is permit to proceed, dev_lock[curBatch]: %d\n", curBatch, idx, dev_lock[curBatch]);
-*/
 	}
 	__syncthreads();
 }
@@ -689,8 +684,6 @@ void SOR(int n1, int n2, int *table){
 	int blockPerGrid = 1;
 	int numStream = 28;
 	int warpbatch = threadPerBlock / 32;
-
-	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
 
 	//For hyperlane tiles, if tileX!=tileY, the X length of the first tile and the last tile are equal to tileY.
 //	int xseg = (n1+tileX-1) / tileX;

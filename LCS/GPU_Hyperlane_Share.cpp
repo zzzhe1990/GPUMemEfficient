@@ -8,6 +8,7 @@
 
 using namespace std;
 //#define DEBUG
+//#define batchexe
 
 void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
 	ifstream inputfile;
@@ -92,7 +93,10 @@ int main(int argc, char **argv){
 	struct timeval tbegin, tend;
 
 	gettimeofday(&tbegin, NULL);
-	
+
+#ifdef batchexe
+	for (int i=0; i<100; i++)
+#endif	
 	lcslength = LCS(n1, n2, arr1, arr2, paddX, paddY, table);
 
 	gettimeofday(&tend, NULL);
