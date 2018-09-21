@@ -18,3 +18,10 @@ GPU_Hyperlane_Cache code does not work when string size is smaller than 2^10.
 For performance comparison:
 1. Exclude memory copy when comparing Hyperlane_Share to Hyperlane_Cache.
 2. Include memory copy when comparing GPU code to CPU code.
+
+
+
+***********************************************
+Sep 22
+**********************************************
+edit distance code is completed. Wagner-Fischer Algorithm
