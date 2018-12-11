@@ -4,10 +4,11 @@
 #include<sstream>
 #include<string>
 #include<sys/time.h>
-
+#include "GPU.h"
 using namespace std;
-#define DEBUG
-const int MAXTRIAL=100;
+//#define DEBUG
+#define batchexe
+const int MAXTRIAL = 8; 
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
@@ -20,51 +21,50 @@ void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **a
 
 	inputfile >> n1 >> n2 >> padd;
 	
-	*arr1 = new int[(n1+2) * (n2+2)];
-	*arr2 = new int[(n1+2) * (n2+2)];
+	*arr1 = new int[(n1+2*padd) * (n2+2*padd)];
+	*arr2 = new int[(n1+2*padd) * (n2+2*padd)];
 
-	for (int j=0; j<padd -1; j++){
+/*	for (int j=0; j<padd -1; j++){
 		inputfile.ignore(2^15+2*padd, '\n');
 	}
+*/
+	for (int j=0; j<n2+2*padd; j++){
+//		inputfile.ignore(3, '\n');
+		for (int i=0; i<n1+2*padd; i++)
+			inputfile >> (*arr1)[j * (n1 +2*padd)+ i];
+		inputfile.ignore(2^15+2*padd, '\n');
+	}
+}
+/*
+void readInputData(string str1, int &n1, int &n2, int **arr){
+	ifstream inputfile;
+	inputfile.open( str1.c_str() );
+	
+	if (!inputfile){
+		cout << "ERROR: Input file cannot be opened!" << endl;
+		exit(EXIT_FAILURE);
+	}
+
+	inputfile >> n1 >> n2;
+	
+	*arr = new int[(n1+2) * (n2+2)];
 
 	for (int j=0; j<n2+2; j++){
-		inputfile.ignore(3, '\n');
 		for (int i=0; i<n1+2; i++)
-			inputfile >> (*arr1)[j * (n1 +2)+ i];
+			inputfile >> (*arr)[j * (n1 +2)+ i];
 		inputfile.ignore(2^15+2, '\n');
 	}
 }
-
+*/
 void displayInput(int *arr, int n1, int n2){
-	cout << "SOR table: " << endl;
-	for (int j=0; j<n2+2; j++){
-		for (int i=0; i<n1+2; i++){
+	cout << "SOR table: ";
+	for (int j=0; j<=n2+2; j++){
+		for (int i=0; i<=n1+2; i++){
 			cout << arr[j*(n1+2) + i] << " ";
 		}
 		cout << '\n';
 	}
 }
-
-void SOR(int n1, int n2, int padd, int *arr1, int *arr2){
-	int *tmp;
-	for (int t=0; t < MAXTRIAL; t++){
-		for (int y=0; y < n2; y++){
-			for (int x=0; x < n1; x++){
-				int idx = x+1;
-				int idy = y+1;
-				arr2[idy * (n1+2) + idx] = (arr1[(idy-1)*(n1+2) + idx]
-						 + arr1[idy * (n1+2) + idx - 1] 
-						+ arr1[idy * (n1+2) + idx] + arr1[idy * (n1+2) + idx + 1] 
-						+ arr1[(idy+1)*(n1+2) + idx]) / 5;
-
-			}	
-		}
-		tmp = arr2;
-		arr2 = arr1;
-		arr1 = tmp;
-	}
-}
-
 
 
 int main(int argc, char **argv){
@@ -101,24 +101,26 @@ int main(int argc, char **argv){
 	int n1, n2, padd;
 	int *arr1, *arr2;
 	
-	readInputData(str1, n1, n2, padd,  &arr1, &arr2);
+	readInputData(str1, n1, n2, padd, &arr1, &arr2);
 
-//	displayInput(arr1, n1, n2);
+//	displayInput(arr1, arr2, n1, n2);
 	
 	struct timeval tbegin, tend;
 
 	gettimeofday(&tbegin, NULL);
-	
-	SOR(n1, n2, padd,  arr1, arr2);
+
+#ifdef batchexe
+	for (int i=0; i<100; i++)
+#endif	
+	SOR(n1, n2, padd, arr1, arr2, MAXTRIAL);
 
 	gettimeofday(&tend, NULL);
 
 	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec)/1000000.0;
-	cout << "the last element: " << arr1[(n1+2)*n2+n1] << endl;
 
 	cout << "execution time: " << s << " second." << endl;
 #ifdef DEBUG
-	string outfile = "./Output/output_";
+	string outfile = "./Output/output_LCS_";
 	outfile.append(convert1.str());
 	outfile.append(".txt");
 
@@ -133,7 +135,7 @@ int main(int argc, char **argv){
 	
 	for (int i=0; i<n2+2; i++){
 		for (int j=0; j<n1+2; j++){
-			output << arr1[i*(n1+2)+ j] << " ";
+			output << arr1[i*(n1+2*padd)+ j] << " ";
 		}
 		output << '\n';
 	}

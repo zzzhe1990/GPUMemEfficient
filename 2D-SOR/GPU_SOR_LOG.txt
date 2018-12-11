@@ -1,0 +1,14 @@
+************Nov 29 2018*******************
+Parallelgoram Tiling for 2D-SOR
+******************************************
+1. Serial code and direct GPU code are implemented as SOR and GPU.
+2. Challenges for tiling:
+	a. irregular tile shape at the edges. How to manage them automatically?
+	b. memory updates management if the parallelism is applied to both spatial and temporal 	   dimensions. Tiles within the same temporal range are using the same source data, but            the tiles at the next temporal range require the updated result of the current one's.3. Implementation:
+	a. Implement a hardcode version on a small sample base.
+	b. Implement a non-temporal inter-tile parallelism version first.
+	c. Start with 2D.
+	d. We assume that edge size "n1, n2" and tile edge size "tileX, tileY" are all multiple		   power of 2. Same as temporal dimension.
+	e. Combination of Parallelgoram Tiling and Trapezoid Tiling.
+4. Test:
+	a. Run input data with an existing benchmark to verify the correctness of the result. 

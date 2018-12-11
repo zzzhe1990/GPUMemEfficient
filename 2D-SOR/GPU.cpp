@@ -7,8 +7,34 @@
 #include "GPU.h"
 using namespace std;
 //#define DEBUG
+const int MAXTRIAL = 100;
+void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
+	ifstream inputfile;
+	inputfile.open( str1.c_str() );
+	
+	if (!inputfile){
+		cout << "ERROR: Input file cannot be opened!" << endl;
+		exit(EXIT_FAILURE);
+	}
 
-void readInputData(string str1, int &n1, int &n2, int **arr){
+	inputfile >> n1 >> n2 >> padd;
+	
+	*arr1 = new int[(n1+2) * (n2+2)];
+	*arr2 = new int[(n1+2) * (n2+2)];
+
+	for (int j=0; j<padd -1; j++){
+		inputfile.ignore(2^15+2*padd, '\n');
+	}
+
+	for (int j=0; j<n2+2; j++){
+		inputfile.ignore(3, '\n');
+		for (int i=0; i<n1+2; i++)
+			inputfile >> (*arr1)[j * (n1 +2)+ i];
+		inputfile.ignore(2^15+2, '\n');
+	}
+}
+/*
+void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
 	ifstream inputfile;
 	inputfile.open( str1.c_str() );
 	
@@ -19,15 +45,16 @@ void readInputData(string str1, int &n1, int &n2, int **arr){
 
 	inputfile >> n1 >> n2;
 	
-	*arr = new int[(n1+2) * (n2+2)];
+	*arr1 = new int[(n1+2) * (n2+2)];
+	*arr2 = new int[(n1+2) * (n2+2)];
 
 	for (int j=0; j<n2+2; j++){
 		for (int i=0; i<n1+2; i++)
-			inputfile >> (*arr)[j * (n1 +2)+ i];
+			inputfile >> (*arr1)[j * (n1 +2)+ i];
 		inputfile.ignore(2^15+2, '\n');
 	}
 }
-
+*/
 void displayInput(int *arr, int n1, int n2){
 	cout << "SOR table: ";
 	for (int j=0; j<=n2+2; j++){
@@ -70,10 +97,10 @@ int main(int argc, char **argv){
 	str1.append(filename);
 	str1.append(fileformat);
 
-	int n1, n2;
-	int *arr;
+	int n1, n2, padd;
+	int *arr1, *arr2;
 	
-	readInputData(str1, n1, n2, &arr);
+	readInputData(str1, n1, n2, padd, &arr1, &arr2);
 
 //	displayInput(arr1, arr2, n1, n2);
 	
@@ -81,7 +108,7 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tbegin, NULL);
 	
-	SOR(n1, n2, arr);
+	SOR(n1, n2, padd, arr1, arr2, MAXTRIAL);
 
 	gettimeofday(&tend, NULL);
 
@@ -110,7 +137,8 @@ int main(int argc, char **argv){
 	}
 	output.close();
 #endif
-	delete[] arr;
+	delete[] arr1;
+	delete[] arr2;
 
 	return 0;
 }

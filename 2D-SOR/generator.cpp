@@ -9,6 +9,7 @@ using namespace std;
 
 int main(int argc, char *argv[]){
 	int n1, n2;
+	int paddsize = 20;
 	string path = "./Data/";	
 	string filename1 = "x_2_";
 	string filename2 = "_y_2_";
@@ -31,15 +32,15 @@ int main(int argc, char *argv[]){
 	ostringstream convert1, convert2;
 
 	int *arr;
-	arr = new int[(size1+2)*(size2+2)];
+	arr = new int[(size1+2*paddsize)*(size2+2*paddsize)];
 	srand(time(NULL));
 	
-	for (int j=0; j<size2+2; j++){
-		for (int i=0; i<size1+2; i++)	
-			arr[j*(size1+2) + i] = rand()%10000;
+	for (int j=0; j<size2+2*paddsize; j++){
+		for (int i=0; i<size1+2*paddsize; i++)	
+			arr[j*(size1+2*paddsize) + i] = rand()%10000;
 	}
 	
-	while (n1 >= 8){
+	while (n1 >= 3){
 		size1 = pow(2, n1);
 		size2 = pow(2, n2);
 		filename1 = "x_2_";
@@ -54,11 +55,11 @@ int main(int argc, char *argv[]){
 		ofstream myfile;
 		myfile.open(path.c_str());
 
-		myfile << size1 << " " << size2 << endl;
+		myfile << size1 << " " << size2 << " " << paddsize << endl;
 
-		for (int j=0; j< size2+2; j++){	
-			for (int i=0; i< size1+2; i++)
-				myfile << arr[j*(size1+2) + i] << " ";
+		for (int j=0; j< size2+2*paddsize; j++){	
+			for (int i=0; i< size1+2*paddsize; i++)
+				myfile << arr[j*(size1+2*paddsize) + i] << " ";
 			myfile << endl;
 		}
 	
