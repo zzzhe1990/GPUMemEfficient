@@ -694,14 +694,16 @@ void checkGPUError(cudaError err){
 }
 
 int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
-	cudaSetDevice(0);	
+	cudaSetDevice(0);
+	cudaDeviceProp gpuinfo;
+	cudaGetDeviceProperties(&gpuinfo, 0);	
 	int lcslength;
 
 	//tileY must be larger than tileX
-	int tileX = 64;
-	int tileY = 128;
-	int rowsize = paddX + n2;
-	int colsize = paddY + n1;
+	int tileX = 32;
+	int tileY = 256;
+	int rowsize = paddX + n1;
+	int colsize = paddY + n2;
 
 	int *dev_arr1, *dev_arr2;
 	volatile int *dev_table, *dev_lock;
@@ -726,7 +728,7 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 //	int threadPerBlock = max(tileY + 32, tileX + 32);
 	int threadPerBlock = 1024;
 	int blockPerGrid = 1;
-	int numStream = 28;
+	int numStream = gpuinfo.multiProcessorCount;
 	int warpbatch = threadPerBlock / 32;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
@@ -760,13 +762,13 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 //		cout << endl << "curBatch: " << curBatch << ", yseg: " << yseg << endl;	
 		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2, warpbatch);			
 //		GPU<<<blockPerGrid, threadPerBlock>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
-		checkGPUError( cudaGetLastError() );
+		//checkGPUError( cudaGetLastError() );
 //		cudaDeviceSynchronize();
 	}
+	cudaDeviceSynchronize();
 	cudaMemcpy(&lcslength, (void*)&dev_table[tablesize-1], sizeof(int), cudaMemcpyDeviceToHost);
-	//cudaMemcpy(table, (void*)dev_table, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
-
 #ifdef DEBUG
+	cudaMemcpy(table, (void*)dev_table, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
 	//display table
 	cout << "grid size: " << blockPerGrid << ", block size: " << threadPerBlock << ", full table: " << endl;
 	for (int i=0; i<colsize; i++){
@@ -785,7 +787,6 @@ int LCS(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	cudaFree((void*)dev_table);
 	cudaFree((void*)dev_lock);
 	delete[] lock;
-	cudaDeviceReset();
 
 	return lcslength;
 }

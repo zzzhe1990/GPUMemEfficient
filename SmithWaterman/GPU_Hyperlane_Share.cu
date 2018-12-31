@@ -681,25 +681,29 @@ void checkGPUError(cudaError err){
 }
 
 int SW(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
-	cudaSetDevice(0);	
+	cudaSetDevice(0);
+	cudaDeviceProp gpuinfo;
+	cudaGetDeviceProperties(&gpuinfo, 0);
 	int last;
 
 	//tileY must be larger than tileX
 	int tileX = 64;
 	int tileY = 128;
-	int rowsize = paddX + n2;
-	int colsize = paddY + n1;
+	int rowsize = paddX + n1;
+	int colsize = paddY + n2;
 
 	int *dev_arr1, *dev_arr2;
 	volatile int *dev_table, *dev_lock;
 	int *lock;
 	size_t freeMem, totalMem;
-	
-	
-	cudaMemGetInfo(&freeMem, &totalMem);
 	int tablesize = colsize * rowsize;
+	
+#ifdef DEBUG	
+	cudaMemGetInfo(&freeMem, &totalMem);
+	cout << "GPU: "	 << gpuinfo.name << ", multiprocessor count: " << gpuinfo.multiProcessorCount<< endl;
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes.";
 	cout << "colsize: " << colsize << ", rowsize: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
+#endif
 	cudaError err = cudaMalloc(&dev_table, tablesize * sizeof(int));
 	checkGPUError(err);
 	
@@ -711,9 +715,9 @@ int SW(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
 	cudaMemcpy(dev_arr2, arr2, n2*sizeof(int), cudaMemcpyHostToDevice);
 
 //	int threadPerBlock = max(tileY + 32, tileX + 32);
-	int threadPerBlock = 512;
+	int threadPerBlock = 1024;
 	int blockPerGrid = 1;
-	int numStream = 28;
+	int numStream = gpuinfo.multiProcessorCount;
 	int warpbatch = threadPerBlock / 32;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);

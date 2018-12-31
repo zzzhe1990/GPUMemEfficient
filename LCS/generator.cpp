@@ -40,7 +40,7 @@ int main(int argc, char *argv[]){
 	for (int i=0; i<size2; i++)
 		arr2[i] = rand()%4;
 
-	while (n1 >= 8){
+	while (n1 >= 4){
 		size1 = pow(2, n1);
 		size2 = pow(2, n2);
 		filename1 = "str1_2_";

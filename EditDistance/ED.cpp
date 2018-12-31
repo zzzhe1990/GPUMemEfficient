@@ -131,10 +131,10 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tend, NULL);
 
-	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec)/1000000.0;
+	double s = (double)(tend.tv_sec - tbegin.tv_sec)*1000 + (double)(tend.tv_usec - tbegin.tv_usec)/1000.0;
 
 	cout << "last: " << last << endl;
-	cout << "execution time: " << s << " second." << endl;
+	cout << "execution time: " << s << " ms." << endl;
 #ifdef DEBUG
 	string outfile = "./Output/output_LCS_";
 	outfile.append(convert1.str());

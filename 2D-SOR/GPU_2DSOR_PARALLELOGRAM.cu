@@ -105,8 +105,9 @@ __global__ void GPU_Tile(int *dev_arr1, int *dev_arr2, volatile int *dev_lock, i
 	__shared__ int intra_dep[2047];
 
 	int thread = blockDim.x * blockIdx.x + threadIdx.x;
-	int segLengthX = tileX + stride + 1;
-	int segLengthY = tileY + stride + 1;
+	int padd = stride + 1;
+	int segLengthX = tileX + padd;
+	int segLengthY = tileY + padd;
 	int tileIdx = 1;
 	int tar;
 	int idx1, idx2, xidx, yidx;
@@ -131,7 +132,6 @@ __global__ void GPU_Tile(int *dev_arr1, int *dev_arr2, volatile int *dev_lock, i
 			copy intra_dep[tt] to shared tile;
 			copy inter_dep[tt] to shared tile;
 			for (; thread < tileX * tileY; thread += blockDim.x){
-				sumStencil = 0;
 				//because of the bias, xidx and yidx are the pos of new time elements.
 				//thread % tileX and thread / tileX are pos of current cached elements.
 				xidx = thread % tileX;
@@ -139,30 +139,18 @@ __global__ void GPU_Tile(int *dev_arr1, int *dev_arr2, volatile int *dev_lock, i
 				//idx1 is the pos of the raw elements and the destination pos.
 				//idx2 is the pos of the new calculated elements. The new elements shift
 				//itself by "stride" along each dimension from its initial position.
-				idx1 = (yidx+stride+1) * segLengthX + stride+1 + xidx;
+				idx1 = (yidx+padd) * segLengthX + padd + xidx;
 				idx2 = (yidx+1) * segLengthX + 1 + xdix;		
 	
-				sumStencil = tile1[idx+1] + tile1[idx+tileX] + tile1[idx] + tile1[thread-1] + tile1[thread-tileX];
-				if (xidx < 0)
-					sumStencil = sumStencil + intra_dep[] + intra_dep[] + intra_dep[];
-			
-				if (rowx < )
-					sumStencil = sumStencil - tile1[thread-] + inter_dep[];		
-
-				tar = sumStencil / 5;
-
-				if (rowx < stride+tt)
-					tar = tile1[thread-];	
-		
-				tile2[thread] = tar;
-				__syncthreads();
+				tar = (tile1[idx2+1] + tile1[idx2+padd+tileX] + tile1[idx] + tile1[idx2-1] + tile1[idx2-padd-tileX]) / 5;
+				tile2[idx1] = tar;
+				if (xidx >= tileX-padd)
+					move from tile2 to intra_dep[tt];
+				if (yidx >= tileY-padd)
+					move from tile2 to inter_dep;
+				lock_func_for_tiles();
 			}	
-			if ()
-				move from tile2 to intra_dep;
 			__syncthreads();
-			if ()
-				move from tile2 to inter_dep;
-			lock_func_for_tiles();
 		}						 
 	}
 	else if(curBatch == yseg){

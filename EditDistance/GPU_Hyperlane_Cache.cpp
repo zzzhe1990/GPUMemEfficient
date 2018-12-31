@@ -8,7 +8,8 @@
 
 using namespace std;
 //#define DEBUG
-//#define batchexe
+#define batchexe
+const int itr=100;
 
 void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
 	ifstream inputfile;
@@ -95,16 +96,16 @@ int main(int argc, char **argv){
 	gettimeofday(&tbegin, NULL);
 
 #ifdef batchexe
-	for (int i=0; i<100; i++)
+	for (int i=0; i<itr; i++)
 #endif	
 	last = ED(n1, n2, arr1, arr2, paddX, paddY, table);
 
 	gettimeofday(&tend, NULL);
 
-	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec)/1000000.0;
+	double s = (double)(tend.tv_sec - tbegin.tv_sec)*1000.0 + (double)(tend.tv_usec - tbegin.tv_usec)/1000.0;
 
 	cout << "last: " << last << endl;
-	cout << "execution time: " << s << " second." << endl;
+	cout << "execution time: " << s/itr << " ms." << endl;
 #ifdef DEBUG
 	string outfile = "./Output/output_Hyperlane_";
 	outfile.append(convert1.str());
