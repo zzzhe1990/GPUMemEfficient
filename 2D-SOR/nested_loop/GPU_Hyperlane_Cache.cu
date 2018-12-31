@@ -245,12 +245,14 @@ void checkGPUError(cudaError err){
 
 void SOR(int n1, int n2, int *table){
 	cudaSetDevice(0);
+	cudaDeviceProp gpuinfo;
+	cudaGetDeviceProperties(&gpuinfo, 0);
 	int paddsize = 1;
 	//tileY must be larger than tileX
 	int tileX = 128;
 	int tileY = 1024;
-	int rowsize = paddsize * 2 + n2;
-	int colsize = paddsize * 2 + n1;
+	int rowsize = paddsize * 2 + n1;
+	int colsize = paddsize * 2 + n2;
 
 	volatile int *dev_table, *dev_lock;
 	int *lock;
@@ -259,8 +261,10 @@ void SOR(int n1, int n2, int *table){
 	
 	cudaMemGetInfo(&freeMem, &totalMem);
 	int tablesize = colsize * rowsize;
+#ifdef DEBUG
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes.";
 	cout << "colsize: " << colsize << ", rowsize: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
+#endif	
 	cudaError err = cudaMalloc(&dev_table, tablesize * sizeof(int));
 	checkGPUError(err);
 	
@@ -268,7 +272,7 @@ void SOR(int n1, int n2, int *table){
 
 	int threadPerBlock = max(tileY, tileX);
 	int blockPerGrid = 1;
-	int numStream = 28;
+	int numStream = gpuinfo.multiProcessorCount;
 
 	cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 

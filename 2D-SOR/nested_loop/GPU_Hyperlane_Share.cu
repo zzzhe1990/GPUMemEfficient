@@ -658,6 +658,8 @@ void checkGPUError(cudaError err){
 
 void SOR(int n1, int n2, int *table){
 	cudaSetDevice(0);	
+	cudaDeviceProp gpuinfo;
+	cudaGetDeviceProperties(&gpuinfo, 0);
 	int paddsize = 1;
 	//tileY must be larger than tileX
 	int tileX = 64;
@@ -672,8 +674,10 @@ void SOR(int n1, int n2, int *table){
 	
 	cudaMemGetInfo(&freeMem, &totalMem);
 	int tablesize = colsize * rowsize;
+#ifdef DEBUG
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes.";
 	cout << "colsize: " << colsize << ", rowsize: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
+#endif	
 	cudaError err = cudaMalloc(&dev_table, tablesize * sizeof(int));
 	checkGPUError(err);
 	
@@ -682,7 +686,7 @@ void SOR(int n1, int n2, int *table){
 //	int threadPerBlock = max(tileY + 32, tileX + 32);
 	int threadPerBlock = 1024;
 	int blockPerGrid = 1;
-	int numStream = 28;
+	int numStream = gpuinfo.multiProcessorCount;
 	int warpbatch = threadPerBlock / 32;
 
 	//For hyperlane tiles, if tileX!=tileY, the X length of the first tile and the last tile are equal to tileY.

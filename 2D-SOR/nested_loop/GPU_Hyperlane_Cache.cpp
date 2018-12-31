@@ -4,7 +4,7 @@
 #include<sstream>
 #include<string>
 #include<sys/time.h>
-#include "GPU.h"
+#include "GPU_Hyperlane_Cache.h"
 using namespace std;
 //#define DEBUG
 #define batchexe

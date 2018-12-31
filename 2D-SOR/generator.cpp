@@ -40,7 +40,7 @@ int main(int argc, char *argv[]){
 			arr[j*(size1+2*paddsize) + i] = rand()%10000;
 	}
 	
-	while (n1 >= 3){
+	while (n1 >= 13){
 		size1 = pow(2, n1);
 		size2 = pow(2, n2);
 		filename1 = "x_2_";
