@@ -1,0 +1,214 @@
+Attention:
+1. tile size can be different on different architecture.
+	K40: 96 * 96
+	pascal: 128*128
+	volta: 128*128
+2. the shared memory space reserved for each tile should also include dependency, which means the actual work parallelism is smaller than the array size. 
+3. To ensure the memory coalscing, I extend each dimension of the table by 32. Also, when copying from global memory to the shared memory, a pooling of 32 is also added. Thus, if the tile size is changed, please change shared memory
+   size too.
+4. Number of total threads equals to the size of tile row size.
+5. Number of active threads equals to the current active jobs. 
+6. For each tile, the current code works only when tileX >= tileY.
+7. To point out the work contribution, we have to emphasize the utilization of the shared memory.
+
+************************************************
+Apr 30 2018
+***********************************************
+1. A tile is allocated to one block only, which ensures it is executed by one complete SM. Thus, the best case is that the largest concurrency is equal to the number of cores in each SM.
+2. In the block, each GPU thread has its own parameters like curlevel, curjobs and etc. This is to save the shared memory and reduce the use of conditional branch.
+
+
+*************************************************
+June 6 2018
+*************************************************
+1. Rectangular tile for using shared memory and no shared memory are completed.
+2. Using shared memory is more efficient when the concurrency of the two codes are same. No shared memory is better when the tile size is too big to put into the shared memory.
+3. Some papers talked about wavefront loop, especially: PeerSM synchronous, already did research on my next step work. The difference is that we use shared memory.
+4. PeerSM synchronous has the similar lock implementation as what I thought. We can improve this lock by using one increment variable for each row of tiles instead of a 2-D arrays that each element represents one tile.
+
+
+*************************************************
+June 7 -- June  2018
+*************************************************
+Start hyperlane
+
+1. tileY and tileX must completely divide Y axis and X axis. 
+2. tileY must be the integer times of tileX.
+3. If tileX != tileY, The first tile of each row has to depends on the completion of multiple tiles at the previous row. The number of tiles to be depent on is determined by tileY/tileX, which is also the offset between the index of a tile and the index of its dependt tile.
+4. The last tile is not the same size as the first tile because the last tile does not include the anti-diagonal level for the size of tileY. 
+5. If it is not LCS problem but some other wavefront loop problem, it is possible that we don't need to copy all the data from shared memory back to the global memory. 
+
+kernel structure: 
+	instead of a anti-diagonal of tiles, now we schedule a row of tiles to one kernel, and each kernel has only one block.
+
+Shared Memory: 
+	a. To avoid bank conflict issue, we perform memory reconstruction to have the same level elements stored consectively. (This is not a good option). Another better solution is to introduce odd number of dummy values to shift the array elements, in this code, maybe we can utilize padding values as the dummy values.
+	b. Because of the change of memory layout, the LCS dependency is also changed. We track down two variables for each element: level, index within each level. We use these two variables to calculate the related variables for the dependent elements and locate these elements in shared memory.
+
+Specefic manipulation:
+	First row: 
+		a. The elements of this row may depend on value 0 along Y axis.
+		b. The computation of this row of tiles can start without checking lock variables.
+	First tile of each row:
+		a. The elements of this tile may depend on value 0 along X axis.
+		b. The computation starts only when lock variable of the previous row is no smaller than 1. (Except first row)
+	Other tiles:
+		a. Have to check the lock variable of the previous row before the execution.
+
+	First and last tile:
+		a. this is not a hyperlane but a half rectangular, thus X length is equal to Y length even if tileX != tileY.
+	The last hyperlane tile:
+		a. X length might be different from tileX, if the table X size cannot be completely divided by tileX.
+
+In-tile dependency:
+	First & Last tile:
+		same as rectangular 
+	hyperlane:
+		elements of each diagnoal are stored consecutively. 
+		1 2 3 		1, 4, 7		if idx = 6,
+	      4 5 6    --->  	2, 5, 8  ---> 	up dep: idx-tileY-1 --> 2;  left dep: idx-tileY --> 5
+            7 8 9    		3, 6, 9		diagonal dep: idx-tileY*2-1 --> 1
+
+Lock
+	Array lock is an array of rows that the size of the array is equal to the number of rows.
+
+padding
+	padding size : 2 for both X and Y.
+
+Memory copy between global memory and shared memory
+	global --> shared: we need to copy extra padding elements
+	shared --> global: we can only copy the new updated elements, which is faster. (This is not implemented yet)	
+
+Code Structure
+	First Tile:
+		1. check lock --> update tile start address of the global memory 
+		2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+		3. Process each tile --> different amount of elements, same as rectangular tile --> syncthreads for each level 
+		4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+		5. Update lock --> update next tile start address of the global memory
+	Hyperlane tiles that segLengthX == tileX, except the last hyperlane tile:
+		A loop iterate through all available tiles.
+			1. check lock 
+			2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+			3. Process each tile --> every level has the same amount of elements --> syncthreads for each level 
+			4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+			5. Update lock --> update next tile start address of the global memory
+*********************************************************
+This section requires much more extra work because the pos of the short tile is different at different row.
+Now, we assume the X axis is completely divided.
+	The last Hyperlane tile segLengthX <= tileX:
+		1. check lock 
+		2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+		3. Process each tile --> every level has the same amount of elements --> syncthreads for each level 
+		4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+		5. Update lock --> update next tile start address of the global memory
+*********************************************************
+	The last tile, half rectangular tile:
+		1. check lock  
+		2. copy global to share --> syncthreads --> ensure the update of shared memory is visible to all threads.
+		3. Process each tile --> different amount of elements, same as rectangular tile --> syncthreads for each level 
+		4. copy shared to global --> syncthreads --> ensure the update of global memory is visible to all kernels.
+		5. Update lock
+		
+
+
+*********************************************************
+June 16
+********************************************************
+Done:
+	The first row of tiles are completed correctly and the update to the global memory can be fetched by the next row.
+Problem:
+	The other rows of tiles cannot be completed successfully. The complete global tables are not printed correctly.
+
+
+********************************************************
+July 24
+********************************************************
+Bug Fixed:
+1. Address offset for glbStartX.
+2. Incorrect memory copy from global to share, and from share to global are caused by the parallel calculation of section hyperlane tiles. 
+	Previous: if (thread <= tileY){ for(int i=0; i<tileX; i++){ xxxx; __syncthreads(); }  }
+	This causes problem that some threads are not syncronized by __syncthreads().
+	Now: for(int i=0; i<tileX; i++){ if(thread<tileY){xxxx; __syncthreads(); }  }
+
+Progress:
+Until now, code works properly with one stream only and square tile only.
+
+*******************************************************
+July 26
+*******************************************************
+Bug Found:
+1. The current moveToShareRec and moveToGlobalRec requires more than 64K shared memory when tileY=128
+To solve this problem: instead of copying the entire row of data, only copy the data to be calculated to shared memory.
+It requires more operation and uncoalsced memory access.
+2. This bug may apply to the last tile also.
+3. Multiple streams cause memory segmentation fault.
+
+********************************************************
+Aug 21
+********************************************************
+Work Done:
+1. Memory copy of the first triangular and the last triangular tile is fixed.
+2. hyperlane of different height and width can return correct result at most time. When sequence size is 2^12 or above, 
+there is an error of 1 for the final result.
+
+Bug Found:
+1. Multiple Streams cause memory segmentation fault when the height of table is large and requires more than 15 streams.
+This implies the problem of running multiple kernels on the same stream.
+
+********************************************************
+Aug 22
+********************************************************
+Work Done:
+1. Multiple streams bug is fixed. Caused by the incorrect calculation of the current stream ID. Instead of allocating all different lanes to 
+the separate streams, we have 15 streams only to fully occupy the 15 SMs and have all lanes allocated in a cyclic manner.
+
+Bug Remain:
+1. When sequence length = 2^13 and 2^14, the result returned by hyperlane code is larger than the expected value by 1.
+
+
+*******************************************************
+Sep 4
+******************************************************
+Hyperlane code only works when string size is no smaller than 128 because of the tiling.
+
+
+******************************************************
+Sep 9
+******************************************************
+Bug Fixed:
+1. Hyperlane GPU code is now working properly when string size is no smaller than 128.
+ -- The bug is caused by the incorrect for loop index in LCS.cpp code and incorrect string array index calculation in the last tile function of GPU_Hyperlane_share.cu
+
+******************************************************
+Sep 10
+*****************************************************
+Work Done:
+1. GPU_Hyperlane_Cache code is done. Tiling with the cache instead of shared memory.
+2. Optimizing the performance of GPU_Hyperlane_Share by removing redundant __syncthreads().
+
+
+*****************************************************
+Sep 11
+*****************************************************
+New Work Not Done Yet:
+Further improve the efficiency of GPU_Hyperlane_Share by modifying the moveToShare() and moveToGlobal(). 
+Without the modification, GPU_Hyperlane_Share performs worse than GPU_Hyperlane_Cache on GTX 1080 ti.
+
+
+****************************************************
+Sep 13
+*****************************************************
+Work Done:
+Optimization is applied to both moveToShare() and moveToGlobal().
+
+moveToShare(): new modification boost the performance because the new implementation performs much less data movement
+moveToGlobal(): new modification does not give performance improvement.
+
+
+**************************************************************************************************
+The hyperlane tiles study on the GPU for LCS problem is basically completed.
+
+
+
+
