@@ -30,14 +30,18 @@ __device__ void moveToShare(volatile int *table, volatile int *dev_table, int ti
 */
 	int idx = thread % 32;
 	int warpidx = thread / 32;
-	int glbpos = tileAddress + (rowsize - 1) + warpidx * (rowsize - 1) + idx;
-	int shrpos = segLengthX + warpidx * segLengthX + idx;
-	if (thread < segLengthX)
-		table[thread] = dev_table[tileAddress + thread];
-	for (; warpidx < tileY; warpidx+=warpbatch){
-		table[shrpos] = dev_table[glbpos];
+	int glbpos = tileAddress + warpidx * (rowsize - 1);
+	int shrpos = warpidx * segLengthX;
+//	if (thread < segLengthX)
+//		table[thread] = dev_table[tileAddress + thread];
+	for (; warpidx < segLengthY; warpidx+=warpbatch){
+		for (int i = idx; i < segLengthX; i+= 32){
+			if (i < segLengthX){
+				table[shrpos + i] = dev_table[glbpos + i];
+			}
+		}
 		shrpos += (warpbatch * segLengthX);
-		glbpos += (warpbatch * (rowsize - 1) );
+		glbpos += (warpbatch * (rowsize - 1) );	
 	}
 
 }

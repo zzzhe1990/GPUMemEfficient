@@ -28,13 +28,14 @@ __device__ void moveToShare(volatile int *table, volatile int *dev_table, int ti
 		}	
 	}
 */
-	int idx = thread % 32;
-	int warpidx = thread / 32;
-	int glbpos = tileAddress + (rowsize - 1) + warpidx * (rowsize - 1) + idx;
-	int shrpos = segLengthX + warpidx * segLengthX + idx;
-	if (thread < segLengthX)
-		table[thread] = dev_table[tileAddress + thread];
-	for (; warpidx < tileY; warpidx+=warpbatch){
+	int idx = thread % segLengthX;
+	int lineidx = thread / segLengthX;
+	int batch = 1024/
+	int glbpos = tileAddress + lineidx * (rowsize - 1) + idx;
+	int shrpos = lineidx * segLengthX + idx;
+//	if (thread < segLengthX)
+//		table[thread] = dev_table[tileAddress + thread];
+	for (; lineidx < tileY; lineidx+=warpbatch){
 		table[shrpos] = dev_table[glbpos];
 		shrpos += (warpbatch * segLengthX);
 		glbpos += (warpbatch * (rowsize - 1) );
@@ -662,8 +663,8 @@ void SOR(int n1, int n2, int *table){
 	cudaGetDeviceProperties(&gpuinfo, 0);
 	int paddsize = 1;
 	//tileY must be larger than tileX
-	int tileX = 64;
-	int tileY = 128;
+	int tileX = 32;
+	int tileY = 256;
 	int rowsize = 2 * paddsize + n1;
 	int colsize = 2 * paddsize + n2;
 
