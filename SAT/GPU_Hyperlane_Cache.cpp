@@ -21,20 +21,20 @@ void readInputData(string str1, int &n1, int &n2, int **arr){
 
 	inputfile >> n1 >> n2;
 	
-	*arr = new int[(n1+2) * (n2+2)];
+	*arr = new int[(n1+3) * (n2+3)];
 
-	for (int j=0; j<n2+2; j++){
-		for (int i=0; i<n1+2; i++)
-			inputfile >> (*arr)[j * (n1 +2)+ i];
-		inputfile.ignore(2^15+2, '\n');
+	for (int j=0; j<n2+3; j++){
+		for (int i=0; i<n1+3; i++)
+			inputfile >> (*arr)[j * (n1 +3)+ i];
+		inputfile.ignore(2^15+3, '\n');
 	}
 }
 
 void displayInput(int *arr, int n1, int n2){
 	cout << "SOR table: ";
-	for (int j=0; j<=n2+2; j++){
-		for (int i=0; i<=n1+2; i++){
-			cout << arr[j*(n1+2) + i] << " ";
+	for (int j=0; j<=n2+3; j++){
+		for (int i=0; i<=n1+3; i++){
+			cout << arr[j*(n1+3) + i] << " ";
 		}
 		cout << '\n';
 	}
