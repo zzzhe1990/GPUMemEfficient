@@ -30,13 +30,14 @@ int main(int argc, char *argv[]){
 
 	ostringstream convert1, convert2;
 
+	int padd = 3;
 	int *arr;
-	arr = new int[(size1+2)*(size2+2)];
+	arr = new int[(size1+padd)*(size2+padd)];
 	srand(time(NULL));
 	
-	for (int j=0; j<size2+2; j++){
-		for (int i=0; i<size1+2; i++)	
-			arr[j*(size1+2) + i] = rand()%10000;
+	for (int j=0; j<size2+padd; j++){
+		for (int i=0; i<size1+padd; i++)	
+			arr[j*(size1+padd) + i] = rand()%10000;
 	}
 	
 	while (n1 >= 13){
@@ -56,9 +57,9 @@ int main(int argc, char *argv[]){
 
 		myfile << size1 << " " << size2 << endl;
 
-		for (int j=0; j< size2+2; j++){	
-			for (int i=0; i< size1+2; i++)
-				myfile << arr[j*(size1+2) + i] << " ";
+		for (int j=0; j< size2+padd; j++){	
+			for (int i=0; i< size1+padd; i++)
+				myfile << arr[j*(size1+padd) + i] << " ";
 			myfile << endl;
 		}
 	

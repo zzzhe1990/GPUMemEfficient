@@ -28,7 +28,7 @@ __device__ void flagWrite(int curBatch, volatile int *dev_lock, int thread){
 	__syncthreads();
 }
 
-__global__ void GPU(volatile int *dev_table, volatile int *dev_lock, int curBatch, int curStartAddress, int rowtiles, int resX, int tileX, int tileY, int paddsize, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int YoverX, int n1, int n2){ 
+__global__ void GPU(volatile int *dev_table, volatile int *dev_lock, int curBatch, int curStartAddress, int rowtiles, int resX, int tileX, int tileY, int paddX1, int paddX2, int paddY, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int YoverX, int n1, int n2){ 
 	//We assume row size n2 is the multiple of 32 and can be completely divided by tileX.
 	//on K40, tile size is max to 48K, which is 128*96; on pascal and volta, tile size is max to 64K which is 128*128
 	//This code, length of x axis cannot be larger than y axis for each tile.
@@ -48,8 +48,8 @@ __global__ void GPU(volatile int *dev_table, volatile int *dev_lock, int curBatc
 	int thread = blockDim.x * blockIdx.x + threadIdx.x;
 	int tileStartOffset, lvlStartAddress; 
 	int glbStartX;
-	int segLengthX = tileX + paddsize;
-	int segLengthY = tileY + paddsize;
+	int segLengthX = tileX + paddX1 + paddX2;
+	int segLengthY = tileY + paddY + paddY;
 	int idx;
 	int tile = 1;
 
@@ -64,7 +64,7 @@ __global__ void GPU(volatile int *dev_table, volatile int *dev_lock, int curBatc
 	for (int p = 0; p < piece; p++){
 		//first tile is irregular, concurrency is changed from 1 to hightY
 		//the x length and y length of the first tile and the last tile are equal.
-		tileStartOffset = glbStartX + paddsize * rowsize + paddsize;
+		tileStartOffset = glbStartX + paddY * rowsize + paddX1;
 		
 		//length Y > length X, diagonal first element starts from Y axis instead of X axis for calculating the address.
 		int concurrency;
@@ -116,7 +116,7 @@ __global__ void GPU(volatile int *dev_table, volatile int *dev_lock, int curBatc
 //***********************************************************************************************************************************
 	//hyperlane tiles
 	for (tile = 2; tile < xseg; tile++){
-		tileStartOffset = glbStartX + paddsize * rowsize + paddsize - 1;
+		tileStartOffset = glbStartX + paddY * rowsize + paddX1 - 1;
 		flagRead(curBatch, dev_lock, thread, tile, YoverX, xseg);
 		
 		lvlStartAddress = tileStartOffset;
@@ -172,7 +172,7 @@ __global__ void GPU(volatile int *dev_table, volatile int *dev_lock, int curBatc
 //************************************************************************************************************************************
 	//the last tile, which is a half of the rectangular
 	flagRead(curBatch, dev_lock, thread, xseg, YoverX, xseg);
-	glbStartX = curStartAddress + rowsize - paddsize - tileY - paddsize;
+	glbStartX = curStartAddress + rowsize - paddX1 - tileY - paddX2;
 	
 	piece = tileY / tileX;
 	highY = tileX;
@@ -247,12 +247,12 @@ void SOR(int n1, int n2, int *table){
 	cudaSetDevice(0);
 	cudaDeviceProp gpuinfo;
 	cudaGetDeviceProperties(&gpuinfo, 0);
-	int paddsize = 1;
+	int paddX1 = 1, paddX2 = 2, paddY = 1;
 	//tileY must be larger than tileX
 	int tileX = 128;
 	int tileY = 1024;
-	int rowsize = paddsize * 2 + n1;
-	int colsize = paddsize * 2 + n2;
+	int rowsize = paddX1 + paddX2 + n1;
+	int colsize = paddY + paddY + n2;
 
 	volatile int *dev_table, *dev_lock;
 	int *lock;
@@ -300,9 +300,9 @@ void SOR(int n1, int n2, int *table){
 		//int resY = n1 - curBatch * tileY;
 		int resX = (n2 - tileY) % tileX;
 		int curStartAddress = curBatch * tileY * rowsize;
-		int rowStartOffset = paddsize * rowsize + paddsize;
+		int rowStartOffset = paddY * rowsize + paddX1;
 		int rowtiles = xseg + 1;
-		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY, paddsize, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
+		GPU<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_table, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY, paddX1, paddX2, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
 //		GPU<<<blockPerGrid, threadPerBlock>>>(dev_table, dev_arr1, dev_arr2, dev_lock, curBatch, curStartAddress, rowtiles, resX, tileX, tileY,  paddX, paddY, rowStartOffset, rowsize, colsize, xseg, yseg, tileY/tileX, n1, n2);			
 //		cudaDeviceSynchronize();
 	}

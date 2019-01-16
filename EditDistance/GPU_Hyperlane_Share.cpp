@@ -9,7 +9,7 @@
 using namespace std;
 //#define DEBUG
 #define batchexe
-const int itr=100;
+const int itr=1;
 
 void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
 	ifstream inputfile;
