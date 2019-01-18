@@ -249,15 +249,15 @@ void checkGPUError(cudaError err){
 	}
 }
 
-void SOR(int n1, int n2, int *table){
+void SOR(int n1, int n2, int *table, int tX, int tY){
 	cudaSetDevice(0);	
 	cudaDeviceProp gpuinfo;
 	cudaGetDeviceProperties(&gpuinfo, 0);
 	int paddX1 = 1, paddX2 = 2;
 	int paddY = 1;
 	//tileY must be larger than tileX
-	int tileX = 64;
-	int tileY = 128;
+	int tileX = tX;
+	int tileY = tY;
 	int rowsize = paddX1 + paddX2 + n1;
 	int colsize = 2 * paddY + n2;
 

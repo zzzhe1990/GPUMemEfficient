@@ -2,6 +2,6 @@
 #define PARALLEL_H
 
 
-int SW(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table);
+int SW(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table, int tX, int tY);
 
 #endif

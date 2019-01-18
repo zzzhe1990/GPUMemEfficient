@@ -8,7 +8,7 @@
 using namespace std;
 //#define DEBUG
 #define batchexe
-const int itr=1;
+const int itr=100;
 
 void readInputData(string str1, int &n1, int &n2, int **arr){
 	ifstream inputfile;
@@ -42,14 +42,16 @@ void displayInput(int *arr, int n1, int n2){
 
 
 int main(int argc, char **argv){
-	int nn1, nn2;
-	if (argc != 3){
-		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
+	int nn1, nn2, tX, tY;
+	if (argc != 5){
+		cout << "Incorrect Input Parameters. Must be two string sizes and two tile sizes." << endl;
 		exit(EXIT_FAILURE);
 	}
 	else{
 		nn1 = atoi(argv[1]);
 		nn2 = atoi(argv[2]);
+		tX = atoi(argv[3]);
+		tY = atoi(argv[4]);
 	}
 
 	ostringstream convert1, convert2;
@@ -86,7 +88,7 @@ int main(int argc, char **argv){
 #ifdef batchexe
 	for (int i=0; i<itr; i++)
 #endif	
-	SOR(n1, n2, arr);
+	SOR(n1, n2, arr, tX, tY);
 
 	gettimeofday(&tend, NULL);
 

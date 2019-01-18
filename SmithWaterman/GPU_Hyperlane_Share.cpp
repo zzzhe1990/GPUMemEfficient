@@ -47,16 +47,20 @@ void displayInput(int *arr1, int *arr2, int n1, int n2){
 
 
 int main(int argc, char **argv){
-	int nn1, nn2;
-	if (argc !=3){
-		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
+	int nn1, nn2, tX, tY;
+	if (argc !=5){
+		cout << "Incorrect Input Parameters. Must be two string sizes and two tile sizes." << endl;
 		exit(EXIT_FAILURE);
 	}	
 	else{
 		nn1 = atoi(argv[1]);
 		nn2 = atoi(argv[2]);	
+		tX = atoi(argv[3]);	
+		tY = atoi(argv[4]);	
 	}
-	
+
+	cout << nn1 << " " << nn2 << " " << tX << " " << tY << endl;
+
 	ostringstream convert1, convert2;
 
 	convert1 << nn1;
@@ -98,7 +102,7 @@ int main(int argc, char **argv){
 #ifdef batchexe
 	for (int i=0; i<itr; i++)
 #endif	
-	last = SW(n1, n2, arr1, arr2, paddX, paddY, table);
+	last = SW(n1, n2, arr1, arr2, paddX, paddY, table, tX, tY);
 
 	gettimeofday(&tend, NULL);
 

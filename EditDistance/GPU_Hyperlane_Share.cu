@@ -686,15 +686,15 @@ void checkGPUError(cudaError err){
 	}
 }
 
-int ED(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table){
+int ED(int n1, int n2, int *arr1, int *arr2, int paddX, int paddY, int *table, int tX, int tY){
 	cudaSetDevice(0);	
 	cudaDeviceProp gpuinfo;
 	cudaGetDeviceProperties(&gpuinfo, 0);
 	int last;
 
 	//tileY must be larger than tileX
-	int tileX = 32;
-	int tileY = 256;
+	int tileX = tX;
+	int tileY = tY;
 	int rowsize = paddX + n1;
 	int colsize = paddY + n2;
 
