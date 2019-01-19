@@ -1,0 +1,13 @@
+==8909== NVPROF is profiling process 8909, command: ./GPU_Hyperlane_Share 15 15 32 128 1
+==8909== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==8909== Profiling application: ./GPU_Hyperlane_Share 15 15 32 128 1
+==8909== Profiling result:
+==8909== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "GeForce GTX 1080 Ti (0)"
+    Kernel: GPU(int volatile *, int volatile *, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)
+        256                            gld_efficiency             Global Memory Load Efficiency      62.45%      62.45%      62.45%
+        256                            gst_efficiency            Global Memory Store Efficiency      84.08%      84.08%      84.08%
+        256                         shared_efficiency                  Shared Memory Efficiency      80.45%      80.45%      80.45%
+        256                        tex_cache_hit_rate                    Unified Cache Hit Rate      43.99%      43.99%      43.99%
+        256                      l2_tex_read_hit_rate               L2 Hit Rate (Texture Reads)      42.80%      45.17%      42.91%

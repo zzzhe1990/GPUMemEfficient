@@ -1,0 +1,16 @@
+==10024== NVPROF is profiling process 10024, command: ./GPU_Hyperlane_Share 15 15
+==10024== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==10024== Profiling application: ./GPU_Hyperlane_Share 15 15
+==10024== Profiling result:
+==10024== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "GeForce GTX 1080 Ti (0)"
+    Kernel: GPU(int volatile *, int volatile *, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int)
+        256                    dram_read_transactions           Device Memory Read Transactions      534889      829072      706513
+        256                   dram_write_transactions          Device Memory Write Transactions      484691      556402      512058
+        256                              inst_integer                      Integer Instructions   135092798   135092798   135092798
+        256                            gld_efficiency             Global Memory Load Efficiency      74.40%      74.40%      74.40%
+        256                            gst_efficiency            Global Memory Store Efficiency      84.13%      84.13%      84.13%
+        256                         shared_efficiency                  Shared Memory Efficiency      93.54%      93.54%      93.54%
+        256                        tex_cache_hit_rate                    Unified Cache Hit Rate      47.11%      47.11%      47.11%
+        256                      l2_tex_read_hit_rate               L2 Hit Rate (Texture Reads)      28.82%      31.56%      28.96%
