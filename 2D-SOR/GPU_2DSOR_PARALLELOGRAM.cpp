@@ -10,7 +10,7 @@ using namespace std;
 #define batchexe
 const int MAXTRIAL = 8; 
 
-void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
+void readInputData(string str1, int &n1, int &n2, int &padd, int **arr){
 	ifstream inputfile;
 	inputfile.open( str1.c_str() );
 	
@@ -21,8 +21,7 @@ void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **a
 
 	inputfile >> n1 >> n2 >> padd;
 	
-	*arr1 = new int[(n1+2*padd) * (n2+2*padd)];
-	*arr2 = new int[(n1+2*padd) * (n2+2*padd)];
+	*arr = new int[(n1+2*padd) * (n2+2*padd)];
 
 /*	for (int j=0; j<padd -1; j++){
 		inputfile.ignore(2^15+2*padd, '\n');
@@ -31,7 +30,7 @@ void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **a
 	for (int j=0; j<n2+2*padd; j++){
 //		inputfile.ignore(3, '\n');
 		for (int i=0; i<n1+2*padd; i++)
-			inputfile >> (*arr1)[j * (n1 +2*padd)+ i];
+			inputfile >> (*arr)[j * (n1 +2*padd)+ i];
 		inputfile.ignore(2^15+2*padd, '\n');
 	}
 }
@@ -99,9 +98,9 @@ int main(int argc, char **argv){
 	str1.append(fileformat);
 
 	int n1, n2, padd;
-	int *arr1, *arr2;
+	int *arr1;
 	
-	readInputData(str1, n1, n2, padd, &arr1, &arr2);
+	readInputData(str1, n1, n2, padd, &arr);
 
 //	displayInput(arr1, arr2, n1, n2);
 	
@@ -112,7 +111,7 @@ int main(int argc, char **argv){
 #ifdef batchexe
 	for (int i=0; i<100; i++)
 #endif	
-	SOR(n1, n2, padd, arr1, arr2, MAXTRIAL);
+	SOR(n1, n2, padd, arr, MAXTRIAL);
 
 	gettimeofday(&tend, NULL);
 
@@ -135,7 +134,7 @@ int main(int argc, char **argv){
 	
 	for (int i=0; i<n2+2; i++){
 		for (int j=0; j<n1+2; j++){
-			output << arr1[i*(n1+2*padd)+ j] << " ";
+			output << arr[i*(n1+2*padd)+ j] << " ";
 		}
 		output << '\n';
 	}
