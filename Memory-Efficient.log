@@ -25,3 +25,16 @@ For performance comparison:
 Sep 22
 **********************************************
 edit distance code is completed. Wagner-Fischer Algorithm
+
+
+
+**********************************************
+Mar 05 2019
+**********************************************
+Working on 2D-SOR GPU version.
+
+to do:
+1. complete the calculation for the last tile of each batch.
+2. complete the calculation for the last batch.
+3. complete the calculation for the regular batches.
+4. complete the lock functions.
