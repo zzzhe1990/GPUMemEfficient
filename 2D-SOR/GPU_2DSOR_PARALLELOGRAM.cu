@@ -146,50 +146,6 @@ __device__ void moveShareToGlobal(int* tile, int* dev_arr, int startPos, int til
 	}	
 }	
 	
-__device__ void moveToGlobal(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int paddX, int segLengthX, int segLengthY, int warpbatch){
-	int idx = thread % 32;
-	int warpidx = thread / 32;
-	int glbpos = tileAddress + (rowsize - 1) + paddX + warpidx * (rowsize - 1);
-	int shrpos = segLengthX + paddX + warpidx * segLengthX;
-
-	for (; warpidx < tileY; warpidx += warpbatch){
-		for (int i = idx; i < tileX; i += 32){
-			dev_table[glbpos + i] = table[shrpos + i];	
-		}
-		shrpos += (warpbatch * segLengthX);
-		glbpos += (warpbatch * (rowsize - 1) );
-	}
-
-}
-
-__device__ void moveToShareRec(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int segLengthX, int segLengthY, int warpbatch){
-	//This function is designed for the first and the last tiles, which can be treate as rectangular but not hyperlane.
-	//Rectangular tile does not have bank conflict issue.
-	int pos = tileAddress + thread;
-	int idx = thread;
-	if (thread < segLengthX){
-		for (int i=0; i<segLengthY; i++){
-			table[idx] = dev_table[pos];
-			pos += rowsize;
-			idx += segLengthX;
-		}	
-	}
-}
-
-
-__device__ void moveToGlobalRec(volatile int *table, volatile int *dev_table, int tileAddress, int thread, int tileX, int tileY, int rowsize, int segLengthX, int segLengthY, int paddsize){
-	int pos = tileAddress + rowsize + paddsize + thread;
-	int idx = segLengthX + paddsize + thread;
-	if (thread < tileX){
-		for (int i=0; i<tileY; i++){
-			dev_table[pos] = table[idx];
-			pos += rowsize;
-			idx += segLengthX;
-		}
-	}	
-}
-
-
 __device__ void flagRead(int curBatch, volatile int *dev_lock, int thread, int idx, int YoverX, int xseg){
 	if (thread == 0){
 		int limit = min(idx+YoverX, xseg);
@@ -204,6 +160,22 @@ __device__ void flagWrite(int curBatch, volatile int *dev_lock, int thread){
 		dev_lock[curBatch+1] += 1;
 	}
 	__syncthreads();
+}
+
+__device__ void read_batch_lock_for_time(){
+
+}
+
+__device__ void read_tile_lock_for_batch(){
+
+}
+
+__device__ void write_batch_lock_for_time(){
+
+}
+
+__device__ void write_tile_lock_for_batch(){
+
 }
 
 __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int curStartAddress, int tileX, int tileY, int padd, int stride, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int n1, int n2, int warpbatch, int curSMStream, int nextSMStream, int* inter_stream_dep, int inter_stream_dep_size, int tileT, int timepiece, int batchStartAddress){ 
@@ -290,7 +262,7 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 		//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 		//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-		//ignLenX and ignLenY are not used.
+		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 		glbPos = tileAddress;	
 		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileT, tileX, tileY, dep_stride, rowsize, thread);	
 		__syncthreads();
@@ -341,7 +313,7 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 			//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 			//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 			//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-			//ignLenX and ignLenY are not used.
+			//ignLenX == 0 because all elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 			glbPos = tileAddress;	
 			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileT, tileX, tileY, dep_stride, rowsize, thread);	
 			__syncthreads();
@@ -395,9 +367,9 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 		//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 		//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-		//ignLenX and ignLenY are not used.
+		//ignLenX == tileX-tileT because tileT elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 		glbPos = tileAddress;	
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, , tileT, tileX, tileY, dep_stride, rowsize, thread);	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, tileT, tileX, tileY, dep_stride, rowsize, thread);	
 		__syncthreads();
 		write_tile_lock_for_batch();
 
@@ -450,10 +422,9 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 		//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 		//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-		//ignLenX and ignLenY are not used.
-		glbPos = tileAddress;	
-		NEED TO CONSIDER THE CORRECTNESS HERE!!!!!!!!!!!!!!!!!!!!!
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileT, tileX, tileY, dep_stride, rowsize, thread);	
+		glbPos = batchStartAddress + tileIdx * tileX;
+		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileY-tileT, tileX, tileY, dep_stride, rowsize, thread);	
 		__syncthreads();
 		write_tile_lock_for_batch();
 
@@ -501,9 +472,9 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 			//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 			//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 			//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-			//ignLenX and ignLenY are not used.
-			glbPos = tileAddress;	
-			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileT, tileX, tileY, dep_stride, rowsize, thread);	
+			glbPos = batchStartAddress + tileIdx * tileX;
+			//ignLenX == 0 because all elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
+			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileY-tileT, tileX, tileY, dep_stride, rowsize, thread);	
 			__syncthreads();
 			
 			write_tile_lock_for_batch(timepiece, curBatch, tile);
@@ -512,8 +483,6 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 		//when tile = xseg-1, if matrix is completely divided by the tile, no t0 elements copy to shared memory; 
 		//use dependent data and out-of-range data to calculate.
 		tileIdx = xseg-1;
-		//unlike the other two cases that tileAddress points to the source pos of t0, here tileAddress is the destination pos of t(tileT-1).
-		tileAddress = batchStartAddress + tileIdx * tileX - tt;
 		read_tile_lock_for_batch(timepiece, curBatch, tileIdx);
 		for (int tt=0; tt<tileT; tt++){
 			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, thread, tt);
@@ -561,9 +530,10 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 		//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 		//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-		//ignLenX and ignLenY are not used.
-		glbPos = tileAddress;	
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, , tileT, tileX, tileY, dep_stride, rowsize, thread);	
+		//unlike the other two cases that glbPos points to the source pos of t0, here tileAddress is the destination pos of t(tileT-1).
+		glbPos = batchStartAddress + tileIdx * tileX -tt;	
+		//ignLenX == tileX-tileT because tileT elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, tileY-tileT, tileX, tileY, dep_stride, rowsize, thread);	
 		__syncthreads();
 		write_tile_lock_for_batch();
 	
@@ -619,9 +589,9 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 		//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 		//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-		//ignLenX and ignLenY are not used.
+		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == 0 because no size reduction along Y dim.
 		glbPos = tileAddress;	
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileT, tileX, tileY, dep_stride, rowsize, thread);	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, 0, tileX, tileY, dep_stride, rowsize, thread);	
 		__syncthreads();
 		write_tile_lock_for_batch();
 
@@ -666,9 +636,8 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 			//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 			//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 			//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-			//ignLenX and ignLenY are not used.
 			glbPos = tileAddress;	
-			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileT, tileX, tileY, dep_stride, rowsize, thread);	
+			moveShareToGlobal(&tile1[0], dev_arr, glbPos, tileX, tileY, dep_stride, rowsize, segLengthX, thread);	
 			__syncthreads();
 			
 			write_tile_lock_for_batch(timepiece, curBatch, tile);
@@ -726,9 +695,9 @@ __global__ void GPU_Tile(int *dev_arr, volatile int *dev_lock, int curBatch, int
 		//curBatch > 0 && tileIdx == 0, glbPos is shifted up by tileT unit from tileAddress.
 		//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
-		//ignLenX and ignLenY are not used.
+		//ignLenX == tileX-tileT because only tileT elements are copied in each row, ignLenY == 0 because no size reduction along Y dim.
 		glbPos = tileAddress;	
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, , tileT, tileX, tileY, dep_stride, rowsize, thread);	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, 0, tileX, tileY, dep_stride, rowsize, thread);	
 		__syncthreads();
 		write_tile_lock_for_batch();
 
