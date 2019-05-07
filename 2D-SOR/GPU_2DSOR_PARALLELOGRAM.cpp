@@ -4,11 +4,11 @@
 #include<sstream>
 #include<string>
 #include<sys/time.h>
-#include "GPU.h"
+#include"GPU_2DSOR_PARALLELOGRAM.h"
 using namespace std;
 //#define DEBUG
 #define batchexe
-const int MAXTRIAL = 8; 
+const int MAXTRIAL = 12; 
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr){
 	ifstream inputfile;
@@ -98,7 +98,7 @@ int main(int argc, char **argv){
 	str1.append(fileformat);
 
 	int n1, n2, padd;
-	int *arr1;
+	int *arr;
 	
 	readInputData(str1, n1, n2, padd, &arr);
 
@@ -140,8 +140,7 @@ int main(int argc, char **argv){
 	}
 	output.close();
 #endif
-	delete[] arr1;
-	delete[] arr2;
+	delete[] arr;
 
 	return 0;
 }
