@@ -7,8 +7,8 @@
 #include"GPU_2DSOR_PARALLELOGRAM.h"
 using namespace std;
 //#define DEBUG
-#define batchexe
-const int MAXTRIAL = 12; 
+//#define batchexe
+const int MAXTRIAL = 1; 
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr){
 	ifstream inputfile;

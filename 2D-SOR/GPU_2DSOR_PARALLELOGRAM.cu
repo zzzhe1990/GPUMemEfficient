@@ -9,23 +9,39 @@
 //#define DEBUG1
 //#define DEBUG2
 //#define DEBUG3
+#define PRINT_MATRIX
 
+const int MAX_THREADS_PER_BLOCK = 512;
 using namespace std;
 __device__ int row = 0;
 
-__device__ void moveMatrixToTile(volatile int* dev_arr, int* tile, int segLengthX, int tileX, int tileY, int dep_stride, int tileAddress, int rowsize, int warpbatch){
+__device__ void moveMatrixToTile(volatile int* dev_arr, int* tile, int segLengthX, int tileX, int tileY, int dep_stride, int tileAddress, int width, int warpbatch){
 	int idx = threadIdx.x % 32;
 	int warpidx = threadIdx.x / 32;
-	int glbpos = tileAddress + warpidx * rowsize + idx;
-	int shrpos = dep_stride * segLengthX + warpidx * segLengthX + dep_stride + idx;
+	if (warpidx < tileY){
+		int glbpos = tileAddress + warpidx * width;
+		int shrpos = dep_stride * segLengthX + warpidx * segLengthX + dep_stride;
 //	if (threadIdx.x < segLengthX)
 //		table[threadIdx.x] = dev_table[tileAddress + threadIdx.x];
-	for (; warpidx < tileY; warpidx += warpbatch){
-		for (int i = idx; i < tileX; i += 32){
-			tile[shrpos+i] = dev_arr[glbpos+i];
+		for (; warpidx < tileY; warpidx += warpbatch){
+			for (int i = idx; i < tileX; i += 32){
+				tile[shrpos+i] = dev_arr[glbpos+i];
+			}
+			shrpos += (warpbatch * segLengthX);
+			glbpos += (warpbatch * width);
 		}
-		shrpos += (warpbatch * segLengthX);
-		glbpos += (warpbatch * rowsize);
+	}
+	__syncthreads();
+}
+
+__device__ void printSharedTile(int* tile, int segLengthX, int tileX, int tileY, int dep_stride, int curSMStream){
+	if (threadIdx.x == 0 && curSMStream == 0){
+		for (int row = 0; row < dep_stride + tileY; row++){
+			for (int col = 0; col < segLengthX; col++){
+				printf("%d ", tile[row * segLengthX + col]);
+			}
+			printf("\n");
+		}
 	}
 }
 
@@ -41,10 +57,10 @@ __device__ void moveIntraDepToTile(int* intra_dep, int* tile, int tt, int tileY,
 	}
 }
 
-__device__ void moveIntraDepToTileEdge(volatile int* dev_arr, int* tile, int stride, int rowsize, int segLengthX, int dep_stride, int tt, int padd, int n1, int len, int offset = 0){
+__device__ void moveIntraDepToTileEdge(volatile int* dev_arr, int* tile, int stride, int height, int segLengthX, int dep_stride, int tt, int padd, int n1, int len, int offset = 0){
 	//copy out-of-range data to tile
 	if (threadIdx.x < len * dep_stride){
-		int glbpos = padd * rowsize + (padd - dep_stride) + offset * (n1 + dep_stride) + threadIdx.x/dep_stride * rowsize + threadIdx.x % dep_stride;
+		int glbpos = padd * height + (padd - dep_stride) + offset * (n1 + dep_stride) + threadIdx.x/dep_stride * height + threadIdx.x % dep_stride;
 		int tilepos = dep_stride * segLengthX + threadIdx.x/dep_stride * segLengthX + threadIdx.x % dep_stride + offset * (dep_stride + tt);
 		tile[tilepos] = dev_arr[glbpos];
 	}
@@ -77,8 +93,8 @@ __device__ void moveInterDepToTile(int* inter_stream_dep, int* tile, int tt, int
 	}	
 }
 
-__device__ void moveInterDepToTileEdge(volatile int* dev_arr, int* tile, int tileX, int tileY, int dep_stride, int n2, int segLengthX, int padd, int rowsize, int tileIdx, int tt, int len, int offset = 0){
-	int glbpos = (padd - dep_stride) * rowsize + offset * (dep_stride + n2) * rowsize + padd - dep_stride + threadIdx.x;
+__device__ void moveInterDepToTileEdge(volatile int* dev_arr, int* tile, int tileX, int tileY, int dep_stride, int n2, int segLengthX, int padd, int width, int tileIdx, int tt, int len, int offset){
+	int glbpos = (padd - dep_stride) * width + offset * (dep_stride + n2) * width + padd - dep_stride + threadIdx.x;
 	if (tileIdx > 0)
 		glbpos += ((tileIdx-1) * tileX + tileX-tt);
 	if (threadIdx.x < len + dep_stride){
@@ -86,7 +102,7 @@ __device__ void moveInterDepToTileEdge(volatile int* dev_arr, int* tile, int til
 		for (int i=0; i<dep_stride; i++){
 			tile[tilepos] = dev_arr[glbpos];
 			tilepos += segLengthX;
-			glbpos += rowsize;
+			glbpos += width;
 		}
 	}
 }
@@ -108,39 +124,39 @@ __device__ void moveTileToInterDep(int* inter_stream_dep, int* tile, int tt, int
 	}	
 }
 
-__device__ void moveTileToInterDepEdge(volatile int* dev_arr, int* inter_stream_dep, int tt, int tileX, int tileY, int tileT, int nextSMStream, int dep_stride, int n1, int tileIdx, int rowsize, int curBatch, int padd){
+__device__ void moveTileToInterDepEdge(volatile int* dev_arr, int* inter_stream_dep, int tt, int tileX, int tileY, int tileT, int nextSMStream, int dep_stride, int n1, int tileIdx, int height, int curBatch, int padd){
 	int startAddress = (nextSMStream * tileT + tt) * dep_stride * (n1 + dep_stride);
-	int glbpos = padd * rowsize + curBatch * tileY * rowsize + (padd - dep_stride) + (tileY - dep_stride) * rowsize;
+	int glbpos = padd * height + curBatch * tileY * height + (padd - dep_stride) + (tileY - dep_stride) * height;
 	if (threadIdx.x < dep_stride){
 		int interpos = startAddress + threadIdx.x;
 		int pos = glbpos + threadIdx.x;
 		for (int i=0; i<dep_stride; i++){
 	 		inter_stream_dep[interpos] = dev_arr[pos];
-			pos += rowsize;
+			pos += height;
 			interpos += (n1 + dep_stride);
 		}
 	}	
 }
 
-__device__ void moveShareToGlobalEdge(int* tile, volatile int* dev_arr, int startPos, int ignLenX, int ignLenY, int tileX, int tileY, int dep_stride, int rowsize, int segLengthX){
+__device__ void moveShareToGlobalEdge(int* tile, volatile int* dev_arr, int startPos, int ignLenX, int ignLenY, int tileX, int tileY, int dep_stride, int height, int segLengthX){
 	int xidx, yidx, glbPos, tilePos;
 	for (int tid = threadIdx.x; tid < tileX * tileY; tid += blockDim.x){
 		xidx = tid % tileX;
 		yidx = tid / tileX;
 		if (xidx < tileX - ignLenX && yidx < tileY - ignLenY){
-			glbPos = startPos + yidx * rowsize + xidx;
+			glbPos = startPos + yidx * height + xidx;
 			tilePos = (dep_stride + yidx) * segLengthX + dep_stride + xidx;
 			dev_arr[glbPos] = tile[tilePos];
 		}
 	}	
 }	
 
-__device__ void moveShareToGlobal(int* tile, volatile int* dev_arr, int startPos, int tileX, int tileY, int dep_stride, int rowsize, int segLengthX){
+__device__ void moveShareToGlobal(int* tile, volatile int* dev_arr, int startPos, int tileX, int tileY, int dep_stride, int height, int segLengthX){
 	int xidx, yidx, glbPos, tilePos;
 	for (int tid = threadIdx.x; tid < tileX * tileY; tid += blockDim.x){
 		xidx = tid % tileX;
 		yidx = tid / tileX;
-		glbPos = startPos + yidx * rowsize + xidx;
+		glbPos = startPos + yidx * height + xidx;
 		tilePos = (dep_stride + yidx) * segLengthX + dep_stride + xidx;
 		dev_arr[glbPos] = tile[tilePos];
 	}	
@@ -195,7 +211,7 @@ __device__ void write_tile_lock_for_batch(volatile int* dev_row_lock, int curBat
 }
 
 //__global__ void GPU_Tile(int stride, int tileX, int tileY, int curBatch, int batchStartAddress, int* dev_row_lock, int timepiece, int xseg, int yseg, int tileT){
-__global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddress, int tileX, int tileY, int padd, int stride, int rowStartOffset, int rowsize, int colsize, int xseg, int yseg, int n1, int n2, int warpbatch, int curSMStream, int nextSMStream, int* inter_stream_dep, int inter_stream_dep_size, int tileT, int timepiece, int batchStartAddress, volatile int* dev_row_lock){ 
+__global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddress, int tileX, int tileY, int padd, int stride, int rowStartOffset, int height, int width, int xseg, int yseg, int n1, int n2, int warpbatch, int curSMStream, int nextSMStream, int* inter_stream_dep, int inter_stream_dep_size, int tileT, int timepiece, int batchStartAddress, volatile int* dev_row_lock){ 
 //We assume row size n1 is the multiple of 32 and can be completely divided by tileX.
 //For each row, the first tile and the last tile are computed separately from the other tiles.
 //size of the shared memory is determined by the GPU architecture.
@@ -207,6 +223,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 	__syncthreads();
 #endif
 	//need two arrays: 1. tile raw data; 2. intra-stream dependence
+	//tile size stored in the shared array could be as large as 64 * 64
 	__shared__ int tile1[5120];
 	__shared__ int tile2[5120];
 	__shared__ int intra_dep[2047];
@@ -234,10 +251,17 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//along T dimension. Out-of-range elements are used for dependent data.
 		tileAddress = batchStartAddress + tileIdx * tileX;
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
-		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, rowsize, warpbatch);
-/*		for (int tt=0; tt<tileT; tt++){
-			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, rowsize, segLengthX, dep_stride, tt, padd, n1, tileY, 0);
-			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tileX);
+		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, width, warpbatch);
+		for (int tt=0; tt<tileT; tt++){
+			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, height, segLengthX, dep_stride, tt, padd, n1, tileY, 0);
+			//parameter offset == 0
+			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tileX, 0);
+#ifdef PRINT_MATRIX
+		if (threadIdx.x == 0){
+			printf("curSMStream: %d, curBatch: %d, timepiece: %d\n", curSMStream, curBatch, timepiece);
+			printSharedTile(&tile1[0], segLengthX, tileX, tileY, dep_stride, curSMStream);
+		}
+#endif	
 			for (int tid = threadIdx.x; tid < tileX * tileY; tid += blockDim.x){
 				//out-of-range results should be ignored
 				//because of the bias, xidx and yidx are the pos of new time elements.
@@ -253,14 +277,20 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 				//Because the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 				if (xidx > 0 && xidx < tileX-tt && yidx > 0 && yidx < tileY-tt)
 					tile2[newtilePos] = (tile1[tilePos+stride] + tile1[tilePos+segLengthX] + tile1[tilePos] + tile1[tilePos-stride] + tile1[tilePos-segLengthX]) / 5;
+#ifdef PRINT_MATRIX
+		if (threadIdx.x == 0){
+			printf("tile2\n");
+			printSharedTile(&tile2[0], segLengthX, tileX, tileY, dep_stride, curSMStream);
+		}
+#endif	
 			}	
 			__syncthreads();
-			
+/*			
 			//Since the tile size is reduced along the calculation, the intraDep elements (in last two column of the valid tile) is also shifted to left.
 			//Set variable isRegular == 1, when there is a size reduction. 
 			moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, 1, tileY);
 			//first tile has to copy the out-of-range elements, which are on the left-hand side, to next stream's inter_stream_dep array
-			moveTileToInterDepEdge(dev_arr, inter_stream_dep, tt, tileX, tileY, tileT, nextSMStream, dep_stride, n1, tileIdx, rowsize, curBatch, padd);
+			moveTileToInterDepEdge(dev_arr, inter_stream_dep, tt, tileX, tileY, tileT, nextSMStream, dep_stride, n1, tileIdx, height, curBatch, padd);
 			//variable isRegular == 1, because one row is shifted out-side-of the upper boundary
 			//variable len == tileX-tt because this tile is not in a regular size.
 			moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, nextSMStream, tileT, n1, segLengthX, tileIdx, tileX-tt, 1);
@@ -280,8 +310,8 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 		glbPos = tileAddress;	
-*/		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileT, tileX, tileY, dep_stride, rowsize, segLengthX);	
-		__syncthreads();
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileT, tileX, tileY, dep_stride, height, segLengthX);	
+*/		__syncthreads();
 		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
 
 		//tile = 1 to xseg-1; regular size tiles, with index shifting.
@@ -289,10 +319,10 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 			tileAddress = batchStartAddress + tileIdx * tileX;
 			read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
 /*			//copy the base spatial data to shared memory for t=0.
-			moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, rowsize, warpbatch);
+			moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, width, warpbatch);
 			for (int tt=0; tt<tileT; tt++){
 				moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY);
-				moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tileX);
+				moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tileX);
 				for (int tid = threadIdx.x; tid < tileX * tileY; tid += blockDim.x){
 					//out-of-range results should be ignored
 					//because of the bias, xidx and yidx are the pos of new time elements.
@@ -331,7 +361,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 			//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 			//ignLenX == 0 because all elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 			glbPos = tileAddress;	
-			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileT, tileX, tileY, dep_stride, rowsize, segLengthX);	
+			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileT, tileX, tileY, dep_stride, height, segLengthX);	
 			__syncthreads();
 */	
 			write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
@@ -346,8 +376,8 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 /*		for (int tt=0; tt<tileT; tt++){
 			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY);
 			//set variable offset == 1 if it is the last tile of each batch to copy right-side out-of-range elements to 
-			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, rowsize, segLengthX, dep_stride, tt, padd, n1, tileY, 1);
-			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tt + dep_stride);
+			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, height, segLengthX, dep_stride, tt, padd, n1, tileY, 1);
+			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tt + dep_stride);
 			//tileX of the last tile is changed throughout the simulation from 0 to tileT;
 			for (int tid = threadIdx.x; tid < (tt+1) * tileY; tid += blockDim.x){
 				//out-of-range results should be ignored
@@ -375,7 +405,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 				tile2[tid] = 0;
 			}
 			__syncthreads();
-		}
+*/		}
 		//glbPos is the index where the calculated elements should be stored at in the global matrix array.
 		//when curBatch == 0 && tileIdx == 0, glbPos always start from the first eligible element of the tile, which is tileAddress
 		//and then ignore the out-of-range elements by using ignLenX and ignLenY variables.
@@ -384,8 +414,8 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 		//ignLenX == tileX-tileT because tileT elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
-		glbPos = tileAddress;	
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, tileT, tileX, tileY, dep_stride, rowsize, segLengthX);	
+/*		glbPos = tileAddress;	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, tileT, tileX, tileY, dep_stride, height, segLengthX);	
 		__syncthreads();
 */
 		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
@@ -397,12 +427,12 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//along T dimension. Out-of-range elements are used for dependent data.
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
 /*		for (int tt=0; tt<tileT; tt++){
-			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, rowsize, segLengthX, dep_stride, tt, padd, n1, tt, 1);
+			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, height, segLengthX, dep_stride, tt, padd, n1, tt, 1);
 			//the first tile is not in regular size, so variable len = tileX-tt
 			moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, tileY, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tileX-tt);
 			//move out-of-range elements which are beanth the bottom boundary to the tile
 			//variable offset == 1, used to locate the bottom out-of-boundary elements.
-			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tileX, 1);
+			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tileX, 1);
 			
 			for (int tid = threadIdx.x; tid < tileX * tileY; tid += blockDim.x){
 				//out-of-range results should be ignored
@@ -441,7 +471,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 		glbPos = batchStartAddress + tileIdx * tileX;
 		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileY-tileT, tileX, tileY, dep_stride, rowsize, segLengthX);	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileY-tileT, tileX, tileY, dep_stride, height, segLengthX);	
 		__syncthreads();
 */
 //		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
@@ -456,7 +486,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 				moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, tileY, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tileX);
 				//move out-of-range elements which are beanth the bottom boundary to the tile
 				//variable offset == 1, used to locate the bottom out-of-boundary elements.
-				moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tileX, 1);
+				moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tileX, 1);
 				for (int tid = threadIdx.x; tid < tileX * tileY; tid += blockDim.x){
 					//out-of-range results should be ignored
 					//because of the bias, xidx and yidx are the pos of new time elements.
@@ -493,7 +523,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 			//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 			glbPos = batchStartAddress + tileIdx * tileX;
 			//ignLenX == 0 because all elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
-			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileY-tileT, tileX, tileY, dep_stride, rowsize, segLengthX);	
+			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileY-tileT, tileX, tileY, dep_stride, height, segLengthX);	
 			__syncthreads();
 			
 */
@@ -507,17 +537,17 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 /*		for (int tt=0; tt<tileT; tt++){
 			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tt);
 			//set variable offset == 1 if it is the last tile of each batch to copy right-side out-of-range elements to 
-			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, rowsize, segLengthX, dep_stride, tt, padd, n1, tt, 1);
+			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, height, segLengthX, dep_stride, tt, padd, n1, tt, 1);
 			
 			//1. inter_stream_dep elements from previous tile (on top of intra_dep elements); total size == len + dev_stride, where len == tt, which is 0 at t0
 			//2. out-of-range elements
 			//copy edge elements first to cover the out-of-range elements, then copy the inter_stream_dep of previous stream and cover a part of the out-of-range elements.
 			//variable len == tt + dev_stride, which covers the size of the elements, calculated in previous stream, and the out-of-range elements.
-			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tt + dep_stride);
+			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tt + dep_stride);
 			moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, tileY, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tt);
 			//move out-of-range elements which are beanth the bottom boundary to the tile
 			//variable offset == 1, used to locate the bottom out-of-boundary elements.
-			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tt + dep_stride, 1);
+			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tt + dep_stride, 1);
 			//tileX of the last tile is changed throughout the simulation from 0 to tileT;
 			for (int tid = threadIdx.x; tid < (tt+1) * tileY; tid += blockDim.x){
 				//out-of-range results should be ignored
@@ -553,7 +583,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//unlike the other two cases that glbPos points to the source pos of t0, here tileAddress is the destination pos of t(tileT-1).
 		glbPos = batchStartAddress + tileIdx * tileX - tileT;	
 		//ignLenX == tileX-tileT because tileT elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, tileY-tileT, tileX, tileY, dep_stride, rowsize, segLengthX);	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, tileY-tileT, tileX, tileY, dep_stride, height, segLengthX);	
 		__syncthreads();
 */	
 //		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
@@ -565,9 +595,9 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//along T dimension. Out-of-range elements are used for dependent data.
 		tileAddress = batchStartAddress + tileIdx * tileX;
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
-/*		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, rowsize, warpbatch);
+/*		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, width, warpbatch);
 		for (int tt=0; tt<tileT; tt++){
-			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, rowsize, segLengthX, dep_stride, tt, padd, n1, tileY, 0);
+			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, height, segLengthX, dep_stride, tt, padd, n1, tileY, 0);
 			//the first tile is not in regular size, so variable len = tileX-tt
 			moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, tileY, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tileX-tt);
 			for (int tid = threadIdx.x; tid < tileX * tileY; tid += blockDim.x){
@@ -592,7 +622,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 			//Set variable isRegular == 1, when there is a size reduction. 
 			moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, 1, tileY);
 			//first tile has to copy the out-of-range elements, which are on the left-hand side, to next stream's inter_stream_dep array
-			moveTileToInterDepEdge(dev_arr, inter_stream_dep, tt, tileX, tileY, tileT, nextSMStream, dep_stride, n1, tileIdx, rowsize, curBatch, padd);
+			moveTileToInterDepEdge(dev_arr, inter_stream_dep, tt, tileX, tileY, tileT, nextSMStream, dep_stride, n1, tileIdx, height, curBatch, padd);
 			//variable len == tileX-tt because the tile size is reduced during calculation.
 			//isRegular == 0 because there is no row move out-side-of upper boundary
 			moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, nextSMStream, tileT, n1, segLengthX, tileIdx, tileX-tt, 0);
@@ -612,7 +642,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == 0 because no size reduction along Y dim.
 		glbPos = tileAddress;	
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, 0, tileX, tileY, dep_stride, rowsize, segLengthX);	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, 0, tileX, tileY, dep_stride, height, segLengthX);	
 		__syncthreads();
 */		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
 
@@ -621,7 +651,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 			tileAddress = batchStartAddress + tileIdx * tileX;
 			read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
 /*			//copy the base spatial data to shared memory for t=0.
-			moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, rowsize, warpbatch);
+			moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, width, warpbatch);
 			for (int tt=0; tt<tileT; tt++){
 				//isRegular == 0 because this is a regular tile.
 //				moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, 0, tileY);
@@ -659,7 +689,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 			//curBatch == 0 && tileIdx > 0, glbPos is shifted left by tileT unit from tileAddress.
 			//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 			glbPos = tileAddress;	
-			moveShareToGlobal(&tile1[0], dev_arr, glbPos, tileX, tileY, dep_stride, rowsize, segLengthX);	
+			moveShareToGlobal(&tile1[0], dev_arr, glbPos, tileX, tileY, dep_stride, height, segLengthX);	
 			__syncthreads();
 */			
 			write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
@@ -674,13 +704,13 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 /*		for (int tt=0; tt<tileT; tt++){
 			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY);
 			//set variable offset == 1 if it is the last tile of each batch to copy right-side out-of-range elements to 
-			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, rowsize, segLengthX, dep_stride, tt, padd, n1, tileY, 1);
+			moveIntraDepToTileEdge(dev_arr, &tile1[0], stride, height, segLengthX, dep_stride, tt, padd, n1, tileY, 1);
 			
 			//1. inter_stream_dep elements from previous tile (on top of intra_dep elements); total size == len + dev_stride, where len == tt, which is 0 at t0
 			//2. out-of-range elements
 			//copy edge elements first to cover the out-of-range elements, then copy the inter_stream_dep of previous stream and cover a part of the out-of-range elements.
 			//variable len == tt + dev_stride, which covers the size of the elements, calculated in previous stream, and the out-of-range elements.
-			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, rowsize, tileIdx, tt, tt + dep_stride);
+			moveInterDepToTileEdge(dev_arr, &tile1[0], tileX, tileY, dep_stride, n2, segLengthX, padd, height, tileIdx, tt, tt + dep_stride);
 			moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, tileY, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tt);
 			//tileX of the last tile is changed throughout the simulation from 0 to tileT;
 			for (int tid = threadIdx.x; tid < (tt+1) * tileY; tid += blockDim.x){
@@ -716,7 +746,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int curStartAddres
 		//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 		//ignLenX == tileX-tileT because only tileT elements are copied in each row, ignLenY == 0 because no size reduction along Y dim.
 		glbPos = tileAddress;	
-		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, 0, tileX, tileY, dep_stride, rowsize, segLengthX);	
+		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX-tileT, 0, tileX, tileY, dep_stride, height, segLengthX);	
 		__syncthreads();
 */
 		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
@@ -737,19 +767,21 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	cudaSetDevice(0);	
 //stride is the longest distance between the element and its dependence along one dimension times
 //For example: F(x) = T(x-1) + T(x) + T(x+1), stride = 1
+//when we change stride, we also need to update parameter "paddsize" in data generator file.
 	int stride = 1;
 	int dep_stride = stride+1;
-	int tileX = 32;
-	int tileY = 32;
+	int tileX = 4;
+	int tileY = 4;
 	int rawElmPerTile = tileX * tileY;
-	int tileT = 100;
+	int tileT = 1;
+	int numStream = 28;
 
 //PTilesPerTimestamp is the number of parallelgoram tiles can be scheduled at each time stamp
 //	int PTilesPerTimestamp = (n1/tileX) * (n2/tileY); 
 //ZTilesPerTimestamp is the number of trapezoid tiles (overlaped tiles) needed to calculate the uncovered area at each time stamp.
 //	int ZTilesPerTimestamp = (n1/tileX) + (n2/tileY) - 1; 
-	int rowsize = 2 * padd + n1; 
-	int colsize = 2 * padd + n2;
+	int height = 2 * padd + n1; 
+	int width = 2 * padd + n2;
 
 	volatile int *dev_arr;
 	int *lock;
@@ -757,10 +789,10 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	volatile int *dev_time_lock, *dev_row_lock;	
 	
 	cudaMemGetInfo(&freeMem, &totalMem);
-	int tablesize = colsize * rowsize;
+	int tablesize = width * height;
 #ifdef DEBUG
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes." << endl;
-	cout << "colsize: " << colsize << ", rowsize: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
+	cout << "width: " << colsize << ", height: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
 #endif
 	cudaError err = cudaMalloc(&dev_arr, tablesize * sizeof(int));
 	checkGPUError(err);
@@ -770,11 +802,11 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	checkGPUError(err);
 //	cudaMemset((void*)dev_time_lock, 1, n2/tileY * sizeof(int));
 
-	int threadPerBlock = min(1024, rawElmPerTile);
+//	int threadPerBlock = min(MAX_THREADS_PER_BLOCK, rawElmPerTile);
+	int threadPerBlock = MAX_THREADS_PER_BLOCK;
 //	int blockPerGrid = PTilesPerTimestamp;
 	int blockPerGrid = 1;
-	int numStream = 28;
-	int warpbatch = threadPerBlock / 32;
+	int warpbatch = MAX_THREADS_PER_BLOCK / 32;
 
 //memory structure: stream --> tile --> time --> dependence --> tileX
 	int *dev_inter_stream_dependence;
@@ -804,6 +836,17 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	for (int s=0; s<numStream; s++)
 		cudaStreamCreate(&stream[s]);
 
+//print initial matrix
+#ifdef PRINT_MATRIX
+	for (int row = 0; row < height; row++){
+		for (int col = 0; col < width; col++){
+			cout << arr[row * width + col] << " ";	
+		}
+		cout << endl;
+	}
+#endif
+
+
 //t < MAXTRIAL? or t <= MAXTRIAL	
 	for(int t = 0; t < MAXTRIAL; t+= tileT){
 //GPU_ZTile() is the kernel function to calculate the update result, unconvered by Parallelgoram tiling.
@@ -820,12 +863,12 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 			int timepiece = t / tileT;
 			int logicSMStream = curBatch % numStream;
 			int curSMStream = (logicSMStream +  stream_offset * timepiece) % numStream;
-			int curStartAddress = curBatch * tileY * rowsize;
-			int rowStartOffset = padd * rowsize + padd;
+			int curStartAddress = curBatch * tileY * height;
+			int rowStartOffset = padd * height + padd;
 			int batchStartAddress = rowStartOffset + curStartAddress;
 			int nextSMStream = (curSMStream + 1) % numStream;
 //			cout << "curBatch: " << curBatch << ", stride: " << stride << ", tileX: " << tileX << ", tileY: " << tileY << ", t: " << t << ", xseg: " << xseg << ", yseg: " << yseg << ", logicStream: " << logicSMStream << ", curStream: " << curSMStream  << endl;	
-			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, curStartAddress, tileX, tileY,  padd, stride, rowStartOffset, rowsize, colsize, xseg, yseg, n1, n2, warpbatch, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock);	
+			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, curStartAddress, tileX, tileY,  padd, stride, rowStartOffset, height, width, xseg, yseg, n1, n2, warpbatch, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock);	
 			checkGPUError( cudaGetLastError() );
 		}
 		//this global synchronization enforces the sequential computation along t dimension.

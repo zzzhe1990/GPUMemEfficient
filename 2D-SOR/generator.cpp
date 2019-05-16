@@ -9,7 +9,8 @@ using namespace std;
 
 int main(int argc, char *argv[]){
 	int n1, n2;
-	int paddsize = 20;
+	//paddsize is determined by the neighbor elements stride
+	int paddsize = 2;
 	string path = "./Data/";	
 	string filename1 = "x_2_";
 	string filename2 = "_y_2_";
@@ -37,10 +38,10 @@ int main(int argc, char *argv[]){
 	
 	for (int j=0; j<size2+2*paddsize; j++){
 		for (int i=0; i<size1+2*paddsize; i++)	
-			arr[j*(size1+2*paddsize) + i] = rand()%10000;
+			arr[j*(size1+2*paddsize) + i] = rand()%100;
 	}
 	
-	while (n1 >= 13){
+	while (n1 >= 3){
 		size1 = pow(2, n1);
 		size2 = pow(2, n2);
 		filename1 = "x_2_";

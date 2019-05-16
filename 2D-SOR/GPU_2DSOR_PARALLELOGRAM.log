@@ -1,0 +1,17 @@
+Completed:
+1. skelenton code is completed.
+2. stream scheduling, kernel launching, and lock functions are working properly.
+3.
+
+################################################################
+May 15 2019
+################################################################
+Solved:
+1. if (curBatch == 0): moveMatrixToTile() function is now working properly when copying a tile of size 4*4 to shared memory.
+2. if (curBatch == 0): moveIntraDepToTileEdge() function works properly when tt = 0 and tileT = 1.
+3. if (curBatch == 0): moveInterDepToTileEdge() function works properly when tt = 0 and tileT = 1.
+
+
+Problem:
+1. register resources exceed the capacity when threadsPerBlock = 1024.
+2. SOR.cpp: incorrect readInputData() function. Cannot skip the first row of data. Either fix it or change paddsize to 1.

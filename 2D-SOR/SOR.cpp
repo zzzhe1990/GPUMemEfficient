@@ -3,11 +3,12 @@
 #include<fstream>
 #include<sstream>
 #include<string>
+#include<cmath>
 #include<sys/time.h>
 
 using namespace std;
 #define DEBUG
-const int MAXTRIAL=100;
+const int MAXTRIAL=1;
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
@@ -23,15 +24,15 @@ void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **a
 	*arr1 = new int[(n1+2) * (n2+2)];
 	*arr2 = new int[(n1+2) * (n2+2)];
 
-	for (int j=0; j<padd -1; j++){
-		inputfile.ignore(2^15+2*padd, '\n');
+	for (int j=0; j<padd-1; j++){
+		inputfile.ignore((int)pow(2.0,15.0)+2*padd, '\n');
 	}
 
 	for (int j=0; j<n2+2; j++){
-		inputfile.ignore(3, '\n');
+		inputfile.ignore(2, '\n');
 		for (int i=0; i<n1+2; i++)
 			inputfile >> (*arr1)[j * (n1 +2)+ i];
-		inputfile.ignore(2^15+2, '\n');
+		inputfile.ignore((int)pow(2.0, 15.0) + 2, '\n');
 	}
 }
 
@@ -103,7 +104,7 @@ int main(int argc, char **argv){
 	
 	readInputData(str1, n1, n2, padd,  &arr1, &arr2);
 
-//	displayInput(arr1, n1, n2);
+	displayInput(arr1, n1, n2);
 	
 	struct timeval tbegin, tend;
 
