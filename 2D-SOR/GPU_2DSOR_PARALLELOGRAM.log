@@ -15,3 +15,10 @@ Solved:
 Problem:
 1. register resources exceed the capacity when threadsPerBlock = 1024.
 2. SOR.cpp: incorrect readInputData() function. Cannot skip the first row of data. Either fix it or change paddsize to 1.
+
+
+###############################################################
+Jun 5th
+###############################################################
+Solved:
+1. SOR.cpp: readInputData() function. Read all data and process only the central block of (n1+2) * (n2+2).

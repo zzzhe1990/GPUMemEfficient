@@ -55,11 +55,11 @@ void readInputData(string str1, int &n1, int &n2, int **arr){
 	}
 }
 */
-void displayInput(int *arr, int n1, int n2){
+void displayInput(int *arr, int n1, int n2, int padd){
 	cout << "SOR table: ";
-	for (int j=0; j<=n2+2; j++){
-		for (int i=0; i<=n1+2; i++){
-			cout << arr[j*(n1+2) + i] << " ";
+	for (int j=0; j<=n2+2*padd; j++){
+		for (int i=0; i<=n1+2*padd; i++){
+			cout << arr[j*(n1+2*padd) + i] << " ";
 		}
 		cout << '\n';
 	}
@@ -100,9 +100,9 @@ int main(int argc, char **argv){
 	int n1, n2, padd;
 	int *arr;
 	
-	readInputData(str1, n1, n2, padd, &arr);
+//	readInputData(str1, n1, n2, padd, &arr);
 
-//	displayInput(arr1, arr2, n1, n2);
+	displayInput(arr, n1, n2, padd);
 	
 	struct timeval tbegin, tend;
 
