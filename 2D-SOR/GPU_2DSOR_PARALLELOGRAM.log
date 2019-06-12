@@ -22,3 +22,20 @@ Jun 5th
 ###############################################################
 Solved:
 1. SOR.cpp: readInputData() function. Read all data and process only the central block of (n1+2) * (n2+2).
+
+
+###############################################################
+Jun 10th
+##############################################################
+Problem:
+1. moveTileToInterDepEdge() function does not access correct memory address. The print out message is not right.
+Solved;
+
+
+##############################################################
+Jun 11th
+#############################################################
+Problem:
+1. moveTileToInterDep() function: inter_stream_dep[] is not stored correctly, the print information is not correct.
+
+
