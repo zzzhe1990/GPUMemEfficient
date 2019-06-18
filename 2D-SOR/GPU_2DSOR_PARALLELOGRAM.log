@@ -37,5 +37,13 @@ Jun 11th
 #############################################################
 Problem:
 1. moveTileToInterDep() function: inter_stream_dep[] is not stored correctly, the print information is not correct.
+Found not solved.
 
-
+##############################################################
+Jun 17th
+#############################################################
+Problem:
+1. in function moveMatrixToTile(), the element for the last row of the tile are not stored correctly into the shared memory.
+Data entries could be accessed correctly; however, some data entries cannot be properly stored into the shared memory.
+This problem is caused by swaping the data entries between shared memory tile1 and tile2.
+Solved: Introducing threadfence() before the swap function.
