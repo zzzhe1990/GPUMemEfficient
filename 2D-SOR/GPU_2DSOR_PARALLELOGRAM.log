@@ -47,3 +47,16 @@ Problem:
 Data entries could be accessed correctly; however, some data entries cannot be properly stored into the shared memory.
 This problem is caused by swaping the data entries between shared memory tile1 and tile2.
 Solved: Introducing threadfence() before the swap function.
+
+
+###########################################################
+Jun 18th
+###########################################################
+Solved:
+1. "width" and "height" variables are revised. 
+2. curBatch == 0, tileIdx >= 1 && tileIdx < xseg - 1; "newtilePos" is changed to store the results into the tile area instead of dependent data area.
+3. curBatch == 0, tileIdx >= 1 && tileIdx < xseg - 1; "glbPos" is changed from "glbPos = tileAddress" to "glbPos = tileAddress - tileT" to adapt the shift along x dimension.
+4. In function moveShareToGLobal() and moveShareToGlobalEdge(), we should use "width" instead of "height" as parameter.
+
+Needs to be fixed:
+1. Like what we did to "glbPos" in this work, we might need to change "glbPos" accordingly in other simulation to adapt the shift of data entries.
