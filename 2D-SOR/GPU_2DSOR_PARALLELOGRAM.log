@@ -60,3 +60,82 @@ Solved:
 
 Needs to be fixed:
 1. Like what we did to "glbPos" in this work, we might need to change "glbPos" accordingly in other simulation to adapt the shift of data entries.
+
+
+##########################################################
+July 12
+##########################################################
+idea:
+1. replace cudaMalloc with cudaManagedMalloc() to see if it allows a large size test case.
+
+##########################################################
+July 28th
+##########################################################
+Problem:
+1. moveIntraDepToShare() may encounter error. The intra-dep data should be copied to the array for next tile before updating the next time step results of the current tile.
+	a. Move intra-dep array data to shared memory block;
+	b. Calculate the next time stamp result of the shared memory block;
+	c. Move intra-dep data for next tile to intra-dep array.
+	d. Move shared memory block back to GPU memory array.
+Solved: Instead of copy data entries from global memory to intra_dep array, in shared memory, we copy the intra_dep data that locates in shared memory block, which are not updated by next stamp result, to intra_dep array.
+
+Completed:
+1. first batch with tileT == 1 is completed. Test case 3 * 3 matrix with size 2 padding.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
