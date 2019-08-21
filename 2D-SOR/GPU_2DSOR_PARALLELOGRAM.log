@@ -1,3 +1,9 @@
+Version 1.0: 
+1. In the processing of last batch of tile, "else if (curBatch == yseg - 1)", we made several assumption to make the development simple. Search "version 1.0" to see the comments of these assumptions in the code file.
+2. "dep_stride = stride + 1" is correct based on the assumption that "stride == 1". When "stride is larger than 1, 
+it is possible that "dep_stride = 2 * stride"
+
+
 Completed:
 1. skelenton code is completed.
 2. stream scheduling, kernel launching, and lock functions are working properly.
@@ -83,9 +89,24 @@ Completed:
 1. first batch with tileT == 1 is completed. Test case 3 * 3 matrix with size 2 padding.
 
 
+##########################################################
+Aug 18th
+##########################################################
+Problem:
+1. For "else if(curBatch = yseg - 1)", the first tile, what is the correct value for variable "len" in "moveIntraDepToTileEdge()" function. Temporary, we make "len == tt + dep_stride" which is not correct when "stride > 1".
+  
 
 
-
+##########################################################
+Aug 20th
+##########################################################
+Change:
+1. Function "moveIntraDepToTileEdge()", pointer variable "tile" is changed from "&tile1[0]" to "&tile1[x]", where "x" is the start address set up accordingly.
+2. Function "moveIntraDepToTileEdge()", pointer variable "dev_arr" is changed from "dev_arr" to "&dev_arr[x]", where "x" is the start address set up accordingly.
+3. In MID_BATCH branch, the first tile calls "moveIntraDepToTileEdge()" two times. One for the elements in prior to the tile entries; the other one for the elements in prior to the inter_dep entries.
+4. In MID_BATCH branch, the first tile: before function "moveShareToGlobalEdge()", variable "glbPos" is changed from 
+tileAddress" to "tileAddress - tileT * width".
+5. Function "moveInterDepToTileEdge()", pointer variable "dev_arr" is changed from "dev_arr" to "&dev_arr[x]", where "x" is the start address set up accordingly.
 
 
 

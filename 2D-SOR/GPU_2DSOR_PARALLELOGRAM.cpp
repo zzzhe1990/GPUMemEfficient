@@ -56,7 +56,7 @@ void readInputData(string str1, int &n1, int &n2, int **arr){
 }
 */
 void displayInput(int *arr, int n1, int n2, int padd){
-	cout << "SOR table: ";
+	cout << "SOR table: " << endl;
 	for (int j=0; j<n2+2*padd; j++){
 		for (int i=0; i<n1+2*padd; i++){
 			cout << arr[j*(n1+2*padd) + i] << " ";
