@@ -109,6 +109,9 @@ tileAddress" to "tileAddress - tileT * width".
 5. Function "moveInterDepToTileEdge()", pointer variable "dev_arr" is changed from "dev_arr" to "&dev_arr[x]", where "x" is the start address set up accordingly.
 
 
+#########################################################
+Aug 21st
+#########################################################
 
 
 
