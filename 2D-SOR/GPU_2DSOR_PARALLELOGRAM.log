@@ -110,9 +110,17 @@ tileAddress" to "tileAddress - tileT * width".
 
 
 #########################################################
-Aug 21st
+Aug 22st
 #########################################################
+Change:
+1. In memory copy functions like "moveInterDepToTileEdge()", "moveIntraDepToTileEdge()", and etc, the shifting offset is considered and applied in two places:
+	a. function passing parameter: pass the pointer, pointed to an adjusted address.
+	b. inside of each function, add shifting adjustment, which is decided by timestamp "tt".
 
+To do:
+1. In function "moveInterDepToTileEdge()", the if statement "if (threadIdx.x < len + dep_stride)" might not be correct. Not sure if "dep_stride" should be removed because it is already included in "len". Also, we only copy the out-of-range entries in this function and do not need to include the "dep_stride" number of inter-dep entries, which are in prior to the out-of-range inter-dep entries (duplicate copy).
+
+2. We now complete the testing for tileT == 1, 2, 3. However, the MAXTRIAL is still 1. Next step, we should test the case that tileT > 1 and MAXTRIAL > 1, which requires lock synchronize and global memory coherence.
 
 
 

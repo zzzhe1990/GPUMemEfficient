@@ -5,10 +5,11 @@
 #include<string>
 #include<cmath>
 #include<sys/time.h>
+#include<cstring>
 
 using namespace std;
 #define DEBUG
-const int MAXTRIAL=1;
+const int MAXTRIAL=3;
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
@@ -25,8 +26,9 @@ void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **a
 	*arr2 = new int[(n1+2*padd) * (n2+2*padd)];
 
 	for (int j=0; j<n2+2*padd; j++){
-		for (int i=0; i<n1+2*padd; i++)
+		for (int i=0; i<n1+2*padd; i++){
 			inputfile >> (*arr1)[j * (n1 +2*padd)+ i];
+		}
 	}
 }
 
@@ -57,6 +59,7 @@ int* SOR(int n1, int n2, int padd, int *arr1, int *arr2){
 		tmp = arr2;
 		arr2 = arr1;
 		arr1 = tmp;
+		displayInput(arr1, n1, n2, padd);
 	}
 
 	return arr1;
@@ -101,6 +104,8 @@ int main(int argc, char **argv){
 	readInputData(str1, n1, n2, padd,  &arr1, &arr2);
 
 	displayInput(arr1, n1, n2, padd);
+	
+	memcpy(arr2, arr1, sizeof(int) * (n1 + 2 * padd) * (n2 + 2 * padd));
 	
 	struct timeval tbegin, tend;
 
