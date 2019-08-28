@@ -123,6 +123,27 @@ To do:
 2. We now complete the testing for tileT == 1, 2, 3. However, the MAXTRIAL is still 1. Next step, we should test the case that tileT > 1 and MAXTRIAL > 1, which requires lock synchronize and global memory coherence.
 
 
+#########################################################
+Aug 27th
+#########################################################
+Problem:
+1. inter_dep array is updated by the later calculation before it is used for the current calculation. This happens at the beginning of a new timepiece and the number of streams is limited.
+For Example: 2 streams (s0, s1), 3 batches.
+batch:		1	2	3
+timepiece 1:   s0      s1      s0
+timepiece 2:   s1      s0      s1
+
+When s0 is calculating on batch 3 at timepiece 1, it is possible that s1 already starts working on batch 1 timepiece 2 concurrently. In this case, it is possible that s1 is in prior to s0, thus s1 would update the new calculated inter-dep data to s0's inter-dep array, which overwrites the current data and breaks the s0's calculation.
+
+Possible solution: In each timepiece, the first batch can only start when the next stream already complete the calculation.
+For example:  4 streams, 5 batches
+batch:		1	2	3	4	5
+timepiece 1:   s0	s1	s2	s3	s0
+timepiece 2:   s1	s2	s3	s4	s0
+
+In this example, s1 can only start working on batch 1 timepiece 2 when s2 already completes its work on batch 3 timepiece 1.
+It is also possible that this check has to be performed at the beginning of each batch, not only limited to the first batch.
+
 
 
 

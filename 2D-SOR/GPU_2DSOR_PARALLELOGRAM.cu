@@ -6,9 +6,10 @@
 
 //#define ALL
 //#define DEBUG
-//#define PRINT_FIRST_BATCH
-#define PRINT_LAST_BATCH
+#define PRINT_FIRST_BATCH
 //#define PRINT_MID_BATCH
+//#define PRINT_LAST_BATCH
+#define FINAL_RESULT
 #define FIRST_BATCH
 #define LAST_BATCH
 #define MID_BATCH
@@ -280,7 +281,7 @@ __device__ void read_tile_lock_for_batch(volatile int* dev_row_lock, int curBatc
 		int limit = min(tileIdx + YoverX, xseg);
 		while(dev_row_lock[timepiece * yseg + curBatch] < limit){
 		}
-#ifdef DEBUG
+#ifdef DEBUG_LOCK
 		printf("curBatch: %d, tileIdx: %d, timepiece: %d, value: %d, limit: %d\n", curBatch, tileIdx, timepiece, dev_row_lock[timepiece*yseg+curBatch], limit);
 #endif
 	}
@@ -290,7 +291,7 @@ __device__ void read_tile_lock_for_batch(volatile int* dev_row_lock, int curBatc
 __device__ void write_tile_lock_for_batch(volatile int* dev_row_lock, int curBatch, int yseg, int timepiece){
 	if (threadIdx.x == 0){
 		dev_row_lock[timepiece * yseg + curBatch + 1] += 1;
-#ifdef DEBUG
+#ifdef DEBUG_LOCK
 		printf("curBatch: %d, timepiece: %d, update to lock at: %d, value: %d\n", curBatch, timepiece, timepiece*yseg+curBatch+1, dev_row_lock[timepiece*yseg+curBatch+1]);
 #endif
 	}
@@ -304,7 +305,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int tileX, int til
 //tileX is multiple times of 32 to maximize the cache read.		
 #ifdef DEBUG
 	if (threadIdx.x == 0){
-		printf("This is curBatch: %d, timepiece: %d, curStream: %d\n", curBatch, timepiece, curSMStream);
+		printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d\n", curBatch, timepiece, curSMStream, nextSMStream);
 	}
 	__syncthreads();
 #endif
@@ -343,6 +344,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int tileX, int til
 		__syncthreads();
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
+	printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d\n", curBatch, timepiece, curSMStream, nextSMStream);
 	printf("move data matrix to tile %d: \n", tileIdx);
 	printSharedTile(&tile1[0], segLengthX, tileX, tileY, dep_stride, curSMStream);
 }
@@ -404,8 +406,8 @@ if (threadIdx.x == 0){
 			//variable isRegular == 1, because one row is shifted out-side-of the upper boundary
 			//variable len == tileX-tt because this tile is not in a regular size.
 			moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, nextSMStream, tileT, n1, segLengthX, tileIdx, tileX-tt, 1);
-			__syncthreads();
 			__threadfence();
+			__syncthreads();
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep: \n");
@@ -643,6 +645,7 @@ if (threadIdx.x == 0){
 		//along T dimension. Out-of-range elements are used for dependent data.
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
 #ifdef LAST_BATCH
+	printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d\n", curBatch, timepiece, curSMStream, nextSMStream);
 #ifdef PRINT_LAST_BATCH
 if (threadIdx.x == 0){
 	printf("move data matrix to tile %d: \n", tileIdx);
@@ -689,8 +692,8 @@ if (threadIdx.x == 0){
 			//Since the tile size is reduced along the calculation, the intraDep elements (in last two column of the valid tile) is also shifted to left.
 			//Set variable isRegular == 1, when there is a size reduction. 
 			moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, 1, tt);
-			__syncthreads();
 			__threadfence();
+			__syncthreads();
 #ifdef PRINT_LAST_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -768,8 +771,8 @@ if (threadIdx.x == 0){
 				__syncthreads();
 				//isRegular == 0 to disable the tile size reduction, when tile size are constant during the calculation. 
 				moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, 0, tt);
-				__syncthreads();
 				__threadfence();
+				__syncthreads();
 #ifdef PRINT_LAST_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -846,6 +849,7 @@ if (threadIdx.x == 0){
 				if (xidx <= tt && yidx <= tt)
 					tile2[newtilePos] = (tile1[tilePos+stride] + tile1[tilePos+segLengthX] + tile1[tilePos] + tile1[tilePos-stride] + tile1[tilePos-segLengthX]) / 5;
 			}	
+			__threadfence();
 			__syncthreads();
 			
 			//swap tile2 with tile1;
@@ -889,6 +893,7 @@ if (threadIdx.x == 0){
 		__syncthreads();
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
+	printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d\n", curBatch, timepiece, curSMStream, nextSMStream);
 	printf("current global data entries.\n");
 	printGlobal(dev_arr, width, height, curSMStream);
 	printf("move data matrix to tile %d: \n", tileIdx);
@@ -947,7 +952,7 @@ if (threadIdx.x == 0){
 			//first tile has to copy the out-of-range elements, which are on the left-hand side, to next stream's inter_stream_dep array
 			moveTileToInterDepEdge(&tile1[0], inter_stream_dep, tt, tileX, tileY, tileT, nextSMStream, dep_stride, segLengthX, tileIdx, n1);
 			__syncthreads();
-#ifdef PRINT_FIRST_BATCH
+#ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep_edge: \n");
 	printInterDepEdge(inter_stream_dep, tt, tileY, tileT, nextSMStream, dep_stride, segLengthX, tileIdx, n1);
@@ -1193,8 +1198,8 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	int tileX = 4;
 	int tileY = 4;
 	int rawElmPerTile = tileX * tileY;
-	int tileT = 3;
-	int numStream = 28;
+	int tileT = 2;
+	int numStream = 2;
 
 //PTilesPerTimestamp is the number of parallelgoram tiles can be scheduled at each time stamp
 //	int PTilesPerTimestamp = (n1/tileX) * (n2/tileY); 
@@ -1212,7 +1217,7 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	int tablesize = width * height;
 #ifdef DEBUG
 	cout << "current GPU memory info FREE: " << freeMem << " Bytes, Total: " << totalMem << " Bytes." << endl;
-	cout << "width: " << colsize << ", height: " << rowsize << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
+	cout << "width: " << width << ", height: " << height << ", allocates: " << tablesize * sizeof(int)<< " Bytes." << endl;
 #endif
 	cudaError err = cudaMalloc(&dev_arr, tablesize * sizeof(int));
 	checkGPUError(err);
@@ -1256,17 +1261,6 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	for (int s=0; s<numStream; s++)
 		cudaStreamCreate(&stream[s]);
 
-//print initial matrix
-#ifdef DEBUG
-	for (int row = 0; row < height; row++){
-		for (int col = 0; col < width; col++){
-			cout << arr[row * width + col] << " ";	
-		}
-		cout << endl;
-	}
-#endif
-
-
 //t < MAXTRIAL? or t <= MAXTRIAL	
 	for(int t = 0; t < MAXTRIAL; t+= tileT){
 //GPU_ZTile() is the kernel function to calculate the update result, unconvered by Parallelgoram tiling.
@@ -1293,8 +1287,21 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 		}
 		//this global synchronization enforces the sequential computation along t dimension.
 //		cudaDeviceSynchronize();
-	}	
-//cudaMemcpy(table, (void*)dev_table, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
+	}
+
+	int* res_arr = new int[tablesize];
+	err = cudaMemcpy(res_arr, (void*)dev_arr, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
+	checkGPUError(err);
+#ifdef FINAL_RESULT
+	cout << "Final Matrix after a total of " << MAXTRIAL << " time stamps, which are completed as a batch for every " << tileT << endl;
+       	for (int r = 0; r < height; r++){
+		for (int c = 0; c < width; c++){
+			cout << res_arr[r * width + c] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
+#endif
 
 	for (int s=0; s<numStream; s++)
 		cudaStreamDestroy(stream[s]);
@@ -1303,6 +1310,6 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	cudaFree((void*)dev_row_lock);
 	cudaFree((void*)dev_inter_stream_dependence);
 	delete[] lock;
-
+	delete[] res_arr;
 }
 

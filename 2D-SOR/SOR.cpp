@@ -9,7 +9,6 @@
 
 using namespace std;
 #define DEBUG
-const int MAXTRIAL=3;
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
@@ -42,9 +41,9 @@ void displayInput(int *arr, int n1, int n2, int padd){
 	}
 }
 
-int* SOR(int n1, int n2, int padd, int *arr1, int *arr2){
+int* SOR(int n1, int n2, int padd, int *arr1, int *arr2, int trial){
 	int *tmp;
-	for (int t=0; t < MAXTRIAL; t++){
+	for (int t=0; t < trial; t++){
 		for (int y = padd; y < n2 + padd; y++){
 			for (int x = padd; x < n1 + padd; x++){
 				int idx = x;
@@ -68,14 +67,15 @@ int* SOR(int n1, int n2, int padd, int *arr1, int *arr2){
 
 
 int main(int argc, char **argv){
-	int nn1, nn2;
-	if (argc != 3){
+	int nn1, nn2, trial;
+	if (argc != 4){
 		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
 		exit(EXIT_FAILURE);
 	}
 	else{
 		nn1 = atoi(argv[1]);
 		nn2 = atoi(argv[2]);
+		trial = atoi(argv[3]);
 	}
 
 	ostringstream convert1, convert2;
@@ -111,7 +111,7 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tbegin, NULL);
 	
-	int* res = SOR(n1, n2, padd, arr1, arr2);
+	int* res = SOR(n1, n2, padd, arr1, arr2, trial);
 
 	gettimeofday(&tend, NULL);
 
