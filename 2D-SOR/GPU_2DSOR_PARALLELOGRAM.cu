@@ -6,13 +6,14 @@
 
 //#define ALL
 //#define DEBUG
-#define PRINT_FIRST_BATCH
+//#define PRINT_FIRST_BATCH
 //#define PRINT_MID_BATCH
 //#define PRINT_LAST_BATCH
 #define FINAL_RESULT
 #define FIRST_BATCH
 #define LAST_BATCH
 #define MID_BATCH
+#define TIME_LOCK
 
 const int MAX_THREADS_PER_BLOCK = 512;
 using namespace std;
@@ -298,7 +299,49 @@ __device__ void write_tile_lock_for_batch(volatile int* dev_row_lock, int curBat
 	__syncthreads();
 }
 
-__global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int tileX, int tileY, int padd, int stride, int rowStartOffset, int height, int width, int xseg, int yseg, int n1, int n2, int warpbatch, int curSMStream, int nextSMStream, volatile int* inter_stream_dep, int inter_stream_dep_size, int tileT, int timepiece, int batchStartAddress, volatile int* dev_row_lock){ 
+//dev_time_lock has "numStream" lock elements which are mapped to the "numStream" cuda streams. It is used to check if it is safe for one stream to perform "write" operation to the "inter-dep array" of the next stream.
+__device__ void read_time_lock_for_stream(volatile int* dev_time_lock, int curSMStream, int nextSMStream, int xseg, int logicSMStream, int curBatch){
+	if (threadIdx.x == 0){
+#ifdef DEBUG_LOCK
+		printf("curBatch: %d, curSMStream: %d, logicSMStream: %d, xseg: %d, nextSMStream: %d, lock val: %d\n", curBatch, curSMStream, logicSMStream, xseg, nextSMStream, dev_time_lock[nextSMStream]);
+#endif
+		while(dev_time_lock[nextSMStream] < xseg){
+#ifdef DEBUG_LOCK
+			printf("curBatch: %d, curSMStream: %d, nextSMStream: %d, lock val: %d\n", curBatch, curSMStream, nextSMStream, dev_time_lock[nextSMStream]);
+#endif
+		}
+	}
+	__syncthreads();
+}
+
+__device__ void write_time_lock_for_stream(volatile int* dev_time_lock, int curSMStream, int xseg, int curBatch){
+	if (threadIdx.x == 0){
+		dev_time_lock[curSMStream] = xseg;
+//		atomicCAS(dev_time_lock + curSMStream, 0, xseg);
+	}
+	__threadfence();
+	__syncthreads();
+	if (threadIdx.x == 0){
+#ifdef DEBUG_LOCK
+		printf("curBatch: %d, curSMStream: %d, update lock val batck to: %d\n", curBatch, curSMStream, dev_time_lock[curSMStream]);
+#endif
+	}
+	__syncthreads();
+}
+
+__device__ void clear_time_lock_for_stream(volatile int* dev_time_lock, int curSMStream, int xseg, int curBatch){
+	if (threadIdx.x == 0){
+#ifdef DEBUG_LOCK
+		printf("curBatch: %d, curSMStream: %d, val: %d, to be cleared.\n", curBatch, curSMStream, dev_time_lock[curSMStream]);
+#endif
+		dev_time_lock[curSMStream] = 0;
+//		atomicCAS(dev_time_lock + curSMStream, xseg, 0);
+	}
+	__threadfence();
+	__syncthreads();
+}
+
+__global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int tileX, int tileY, int padd, int stride, int rowStartOffset, int height, int width, int xseg, int yseg, int n1, int n2, int warpbatch, int curSMStream, int nextSMStream, int logicSMStream, volatile int* inter_stream_dep, int inter_stream_dep_size, int tileT, int timepiece, int batchStartAddress, volatile int* dev_row_lock, volatile int* dev_time_lock){ 
 //We assume row size n1 is the multiple of 32 and can be completely divided by tileX.
 //For each row, the first tile and the last tile are computed separately from the other tiles.
 //size of the shared memory is determined by the GPU architecture.
@@ -334,11 +377,17 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int tileX, int til
 	//wait until it is safe to launch and execute the new batch.
 
 	if (curBatch == 0){
-	//for the first batch, use the near-edge elements for the out-of-range dependence.
+		//for the first batch, use the near-edge elements for the out-of-range dependence.
 		//when tile = 0, the calculated data which are outside the range are not copied to tile2, tile size is shrinking 
 		//along T dimension. Out-of-range elements are used for dependent data.
 		tileAddress = batchStartAddress + tileIdx * tileX;
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
+#ifdef TIME_LOCK
+		//Before starting the process on one stream, we must first ensure that it is safe for this stream writing data to inter-dep array of the next stream.
+		read_time_lock_for_stream(dev_time_lock, curSMStream, nextSMStream, xseg, logicSMStream, curBatch);
+		//if it is safe to start the work now, clear the time_lock for the current stream to 0.
+		clear_time_lock_for_stream(dev_time_lock, curSMStream, xseg, curBatch);
+#endif
 #ifdef FIRST_BATCH
 		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, width, warpbatch);
 		__syncthreads();
@@ -635,7 +684,10 @@ if (threadIdx.x == 0){
 //endif FIRST_BATCH
 #endif
 		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
-
+#ifdef TIME_LOCK
+		//at the end of the batch, we need to update the dev_time_lock of the current stream back to "xseg"
+		write_time_lock_for_stream(dev_time_lock, curSMStream, xseg, curBatch);
+#endif
 	}
 	else if(curBatch == yseg - 1){
 	//version 1.0: we suppose that the data block is evenly divided by the blocks. Thus, the last batch has no dependence on original 
@@ -644,10 +696,13 @@ if (threadIdx.x == 0){
 		//when tile = 0, the calculated data which are outside the range are not copied to tile2, tile size is shrinking 
 		//along T dimension. Out-of-range elements are used for dependent data.
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
+		
+		read_time_lock_for_stream(dev_time_lock, curSMStream, nextSMStream, xseg, logicSMStream, curBatch);
+		clear_time_lock_for_stream(dev_time_lock, curSMStream, xseg, curBatch);
 #ifdef LAST_BATCH
-	printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d\n", curBatch, timepiece, curSMStream, nextSMStream);
 #ifdef PRINT_LAST_BATCH
 if (threadIdx.x == 0){
+	printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d\n", curBatch, timepiece, curSMStream, nextSMStream);
 	printf("move data matrix to tile %d: \n", tileIdx);
 	printSharedTile(&tile1[0], segLengthX, tileX, tileY, dep_stride, curSMStream);
 }
@@ -881,6 +936,10 @@ if (threadIdx.x == 0){
 #endif	
 		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
 	
+#ifdef TIME_LOCK
+		//at the end of the batch, we need to update the dev_time_lock of the current stream back to "xseg"
+		write_time_lock_for_stream(dev_time_lock, curSMStream, xseg, curBatch);
+#endif
 	}
 	else{
 	//for the regular batch, use the near-edge elements for the out-of-range dependence of first and last tile only.
@@ -888,6 +947,9 @@ if (threadIdx.x == 0){
 		//along T dimension. Out-of-range elements are used for dependent data.
 		tileAddress = batchStartAddress + tileIdx * tileX;
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
+		
+		read_time_lock_for_stream(dev_time_lock, curSMStream, nextSMStream, xseg, logicSMStream, curBatch);
+		clear_time_lock_for_stream(dev_time_lock, curSMStream, xseg, curBatch);
 #ifdef MID_BATCH
 		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX, tileY, dep_stride, tileAddress, width, warpbatch);
 		__syncthreads();
@@ -1175,6 +1237,10 @@ if (threadIdx.x == 0){
 //endif MID_BATCH
 #endif
 		write_tile_lock_for_batch(dev_row_lock, curBatch, yseg, timepiece);
+#ifdef TIME_LOCK
+		//at the end of the batch, we need to update the dev_time_lock of the current stream back to "xseg"
+		write_time_lock_for_stream(dev_time_lock, curSMStream, xseg, curBatch);
+#endif
 	}
 
 //	write_batch_lock_for_time(timepiece, curBatch);
@@ -1195,11 +1261,11 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 //when we change stride, we also need to update parameter "paddsize" in data generator file.
 	int stride = 1;
 	int dep_stride = stride+1;
-	int tileX = 4;
-	int tileY = 4;
+	int tileX = 8;
+	int tileY = 8;
 	int rawElmPerTile = tileX * tileY;
-	int tileT = 2;
-	int numStream = 2;
+	int tileT = 4;
+	int numStream = 4;
 
 //PTilesPerTimestamp is the number of parallelgoram tiles can be scheduled at each time stamp
 //	int PTilesPerTimestamp = (n1/tileX) * (n2/tileY); 
@@ -1222,10 +1288,8 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	cudaError err = cudaMalloc(&dev_arr, tablesize * sizeof(int));
 	checkGPUError(err);
 	
-//	cudaMalloc(&dev_time_lock, n2/tileY * sizeof(int));
 	err = cudaMemcpy((void*)dev_arr, arr, tablesize*sizeof(int), cudaMemcpyHostToDevice);
 	checkGPUError(err);
-//	cudaMemset((void*)dev_time_lock, 1, n2/tileY * sizeof(int));
 
 //	int threadPerBlock = min(MAX_THREADS_PER_BLOCK, rawElmPerTile);
 	int threadPerBlock = MAX_THREADS_PER_BLOCK;
@@ -1257,6 +1321,16 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	checkGPUError(err);
 	err = cudaMemcpy((void*)dev_row_lock, lock, tseg * yseg *sizeof(int), cudaMemcpyHostToDevice);
 	checkGPUError(err);
+//	cudaMalloc(&dev_time_lock, n2/tileY * sizeof(int));
+//	cudaMemset((void*)dev_time_lock, 1, n2/tileY * sizeof(int));
+	int* time_lock = new int[numStream];
+	for (int i = 0; i < numStream; i++){
+		time_lock[i] = xseg;
+	}
+	err = cudaMalloc(&dev_time_lock, numStream * sizeof(int));
+	checkGPUError(err);
+	err = cudaMemcpy((void*)dev_time_lock, time_lock, numStream * sizeof(int), cudaMemcpyHostToDevice);
+	
 	cudaStream_t stream[numStream];
 	for (int s=0; s<numStream; s++)
 		cudaStreamCreate(&stream[s]);
@@ -1282,7 +1356,7 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 			int batchStartAddress = rowStartOffset + curStartAddress;
 			int nextSMStream = (curSMStream + 1) % numStream;
 //			cout << "curBatch: " << curBatch << ", stride: " << stride << ", tileX: " << tileX << ", tileY: " << tileY << ", t: " << t << ", xseg: " << xseg << ", yseg: " << yseg << ", logicStream: " << logicSMStream << ", curStream: " << curSMStream  << endl;	
-			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, tileX, tileY,  padd, stride, rowStartOffset, height, width, xseg, yseg, n1, n2, warpbatch, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock);	
+			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, tileX, tileY, padd, stride, rowStartOffset, height, width, xseg, yseg, n1, n2, warpbatch, curSMStream, nextSMStream, logicSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock, dev_time_lock);	
 			checkGPUError( cudaGetLastError() );
 		}
 		//this global synchronization enforces the sequential computation along t dimension.
@@ -1310,6 +1384,7 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	cudaFree((void*)dev_row_lock);
 	cudaFree((void*)dev_inter_stream_dependence);
 	delete[] lock;
+	delete[] time_lock;
 	delete[] res_arr;
 }
 

@@ -8,7 +8,6 @@
 using namespace std;
 //#define DEBUG
 //#define batchexe
-const int MAXTRIAL = 1; 
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr){
 	ifstream inputfile;
@@ -67,14 +66,15 @@ void displayInput(int *arr, int n1, int n2, int padd){
 
 
 int main(int argc, char **argv){
-	int nn1, nn2;
-	if (argc != 3){
+	int nn1, nn2, nn3;
+	if (argc != 4){
 		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
 		exit(EXIT_FAILURE);
 	}
 	else{
 		nn1 = atoi(argv[1]);
 		nn2 = atoi(argv[2]);
+		nn3 = atoi(argv[3]); 
 	}
 
 	ostringstream convert1, convert2;
@@ -111,7 +111,7 @@ int main(int argc, char **argv){
 #ifdef batchexe
 	for (int i=0; i<100; i++)
 #endif	
-	SOR(n1, n2, padd, arr, MAXTRIAL);
+	SOR(n1, n2, padd, arr, nn3);
 
 	gettimeofday(&tend, NULL);
 

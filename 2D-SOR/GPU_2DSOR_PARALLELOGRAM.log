@@ -144,7 +144,11 @@ timepiece 2:   s1	s2	s3	s4	s0
 In this example, s1 can only start working on batch 1 timepiece 2 when s2 already completes its work on batch 3 timepiece 1.
 It is also possible that this check has to be performed at the beginning of each batch, not only limited to the first batch.
 
-
+#######################################################
+Sep 1st
+#######################################################
+Completion:
+1. "dev_time_lock" and the related lock functions are designed and working properly.
 
 
 
