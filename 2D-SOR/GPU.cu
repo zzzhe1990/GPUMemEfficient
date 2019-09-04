@@ -4,7 +4,7 @@
 #include<string>
 #include<sys/time.h>
 
-//#define PRINT_FINAL_RESULT
+#define PRINT_FINAL_RESULT
 typedef unsigned long long int UINT;
 
 using namespace std;
@@ -13,7 +13,7 @@ __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize,
 			const int colsize, const int n1, const int threadsPerBlock, int padd){
 	int offset = rowsize * blockIdx.x + padd;
 	int idx = threadIdx.x + offset;
-	while (idx < n1 + padd + offset){
+	while (idx < n1 + offset){
 		dev_arr2[idx] = (dev_arr1[idx-1] + dev_arr1[idx-rowsize] + dev_arr1[idx]
 				+ dev_arr1[idx+1] + dev_arr1[idx+rowsize]) / 5;	
 		idx += threadsPerBlock;
@@ -45,6 +45,7 @@ void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL){
 	checkGPUError(err);
 	
 	cudaMemcpy(dev_arr1, arr1, tablesize * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_arr2, arr1, tablesize * sizeof(int), cudaMemcpyHostToDevice);
 
 	int threadsPerBlock = min(1024, n1);
 	int blocksPerGrid = n2;
@@ -65,12 +66,11 @@ void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL){
 
 	gettimeofday(&tend, NULL);
 	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec) / 1000000.0;
-	cout << "execution time: " << s << " second." << endl;
 
 	cudaMemcpy(arr1, dev_arr1, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
 #ifdef PRINT_FINAL_RESULT
 	//display table
-	cout << "full table: " << endl;
+	cout << "result table: " << endl;
 	for (int i=0; i<colsize; i++){
 		for (int j=0; j<rowsize; j++){
 			cout << arr1[i * rowsize + j] << " ";
@@ -78,7 +78,7 @@ void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL){
 		cout << endl;
 	}
 #endif
-	cout << "The last element: " << arr1[n2*rowsize + n1] << endl;
+	cout << "execution time: " << s << " second." << endl;
 	
 	cudaFree(dev_arr1);
 	cudaFree(dev_arr2);
