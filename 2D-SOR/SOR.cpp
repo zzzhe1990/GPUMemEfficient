@@ -8,7 +8,7 @@
 #include<cstring>
 
 using namespace std;
-#define DEBUG
+//#define DEBUG
 
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
@@ -58,7 +58,7 @@ int* SOR(int n1, int n2, int padd, int *arr1, int *arr2, int trial){
 		tmp = arr2;
 		arr2 = arr1;
 		arr1 = tmp;
-		displayInput(arr1, n1, n2, padd);
+//		displayInput(arr1, n1, n2, padd);
 	}
 
 	return arr1;
@@ -103,7 +103,7 @@ int main(int argc, char **argv){
 	
 	readInputData(str1, n1, n2, padd,  &arr1, &arr2);
 
-	displayInput(arr1, n1, n2, padd);
+//	displayInput(arr1, n1, n2, padd);
 	
 	memcpy(arr2, arr1, sizeof(int) * (n1 + 2 * padd) * (n2 + 2 * padd));
 	
@@ -114,6 +114,8 @@ int main(int argc, char **argv){
 	int* res = SOR(n1, n2, padd, arr1, arr2, trial);
 
 	gettimeofday(&tend, NULL);
+	
+	displayInput(arr1, n1, n2, padd);
 
 	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec)/1000000.0;
 

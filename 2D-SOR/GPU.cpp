@@ -7,7 +7,7 @@
 #include "GPU.h"
 using namespace std;
 //#define DEBUG
-const int MAXTRIAL = 100;
+//const int MAXTRIAL = 100;
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
 	inputfile.open( str1.c_str() );
@@ -19,18 +19,18 @@ void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **a
 
 	inputfile >> n1 >> n2 >> padd;
 	
-	*arr1 = new int[(n1+2) * (n2+2)];
-	*arr2 = new int[(n1+2) * (n2+2)];
+	*arr1 = new int[(n1+2*padd) * (n2+2*padd)];
+	*arr2 = new int[(n1+2*padd) * (n2+2*padd)];
 
-	for (int j=0; j<padd -1; j++){
+//	for (int j=0; j<padd -1; j++){
+//		inputfile.ignore(2^15+2*padd, '\n');
+//	}
+
+	for (int j=0; j<n2+2*padd; j++){
+//		inputfile.ignore(3, '\n');
+		for (int i=0; i<n1+2*padd; i++)
+			inputfile >> (*arr1)[j * (n1 +2*padd)+ i];
 		inputfile.ignore(2^15+2*padd, '\n');
-	}
-
-	for (int j=0; j<n2+2; j++){
-		inputfile.ignore(3, '\n');
-		for (int i=0; i<n1+2; i++)
-			inputfile >> (*arr1)[j * (n1 +2)+ i];
-		inputfile.ignore(2^15+2, '\n');
 	}
 }
 /*
@@ -55,11 +55,11 @@ void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
 	}
 }
 */
-void displayInput(int *arr, int n1, int n2){
-	cout << "SOR table: ";
-	for (int j=0; j<=n2+2; j++){
-		for (int i=0; i<=n1+2; i++){
-			cout << arr[j*(n1+2) + i] << " ";
+void displayInput(int *arr, int n1, int n2, int padd){
+	cout << "SOR table: " << endl;
+	for (int j=0; j<=n2+2*padd; j++){
+		for (int i=0; i<=n1+2*padd; i++){
+			cout << arr[j*(n1+2*padd) + i] << " ";
 		}
 		cout << '\n';
 	}
@@ -67,14 +67,15 @@ void displayInput(int *arr, int n1, int n2){
 
 
 int main(int argc, char **argv){
-	int nn1, nn2;
-	if (argc != 3){
+	int nn1, nn2, nn3;
+	if (argc != 4){
 		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
 		exit(EXIT_FAILURE);
 	}
 	else{
 		nn1 = atoi(argv[1]);
 		nn2 = atoi(argv[2]);
+		nn3 = atoi(argv[3]);
 	}
 
 	ostringstream convert1, convert2;
@@ -108,7 +109,7 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tbegin, NULL);
 	
-	SOR(n1, n2, padd, arr1, arr2, MAXTRIAL);
+	SOR(n1, n2, padd, arr1, arr2, nn3);
 
 	gettimeofday(&tend, NULL);
 

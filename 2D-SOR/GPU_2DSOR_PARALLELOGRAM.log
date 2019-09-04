@@ -7,7 +7,17 @@ it is possible that "dep_stride = 2 * stride"
 Completed:
 1. skelenton code is completed.
 2. stream scheduling, kernel launching, and lock functions are working properly.
-3.
+3. two-level locks.
+4. large data based test is correct when "dep_stride" == 2.
+
+
+Keep In Mind:
+1. We are now only able to use "512" threads.
+2. "tileT" is restricted by "tileY", "dep_stride", and "intra_dep" array size.
+3. "tile1" and "tile2" size is now set to "71 * 71" for now to accomodate the largest possible target tile of "64 * 64" and the corresponding "intra" and "inter" dependence data entries. 
+4. However, "tile1" and "tile2" size should not be constant to "71 * 71", we should adjust this size according to the threads number. Also, the smaller "tile1" and "tile2" indicates larger "intra_dep" array, which can also increase "tileT".
+5. Thus, the tradeoff between "tile1 tile2" and "intra_dep", which is actually the tradeoff between "tileX * tileY" and "tileT", is a important part of the performance evaluation.
+
 
 ################################################################
 May 15 2019
@@ -149,6 +159,16 @@ Sep 1st
 #######################################################
 Completion:
 1. "dev_time_lock" and the related lock functions are designed and working properly.
+
+
+
+#######################################################
+Sep 2nd
+#######################################################
+Problem:
+1. Incorrect result when "tileT == 1" and "total timestamp == 1".
+
+
 
 
 

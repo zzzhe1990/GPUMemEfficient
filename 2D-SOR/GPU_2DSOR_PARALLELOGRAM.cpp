@@ -102,7 +102,7 @@ int main(int argc, char **argv){
 	
 	readInputData(str1, n1, n2, padd, &arr);
 
-	displayInput(arr, n1, n2, padd);
+//	displayInput(arr, n1, n2, padd);
 	
 	struct timeval tbegin, tend;
 
