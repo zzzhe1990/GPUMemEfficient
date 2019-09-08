@@ -9,7 +9,7 @@
 //#define PRINT_FIRST_BATCH
 //#define PRINT_MID_BATCH
 //#define PRINT_LAST_BATCH
-#define FINAL_RESULT
+#define PRINT_FINAL_RESULT
 #define FIRST_BATCH
 #define LAST_BATCH
 #define MID_BATCH
@@ -1263,10 +1263,10 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 //when we change stride, we also need to update parameter "paddsize" in data generator file.
 	int stride = 1;
 	int dep_stride = stride+1;
-	int tileX = 64;
-	int tileY = 64;
+	int tileX = 32;
+	int tileY = 32;
 	//tileT is restriced by "tileY" and "intra_dep" shared array size.
-	int tileT = 16;
+	int tileT = 2;
 	int numStream = 28;
 
 //PTilesPerTimestamp is the number of parallelgoram tiles can be scheduled at each time stamp
@@ -1371,7 +1371,7 @@ void SOR(int n1, int n2, int padd, int *arr, int MAXTRIAL){
 	int* res_arr = new int[tablesize];
 	err = cudaMemcpy(res_arr, (void*)dev_arr, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
 	checkGPUError(err);
-#ifdef FINAL_RESULT
+#ifdef PRINT_FINAL_RESULT
 	cout << "Final Matrix after a total of " << MAXTRIAL << " time stamps, which are completed as a batch for every " << tileT << endl;
        	for (int r = 0; r < height; r++){
 		for (int c = 0; c < width; c++){

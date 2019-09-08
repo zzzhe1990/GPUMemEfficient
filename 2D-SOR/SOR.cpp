@@ -41,27 +41,28 @@ void displayInput(int *arr, int n1, int n2, int padd){
 	}
 }
 
-int* SOR(int n1, int n2, int padd, int *arr1, int *arr2, int trial){
+int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 	int *tmp;
 	for (int t=0; t < trial; t++){
 		for (int y = padd; y < n2 + padd; y++){
 			for (int x = padd; x < n1 + padd; x++){
 				int idx = x;
 				int idy = y;
-				arr2[idy * (n1+2*padd) + idx] = (arr1[(idy-1)*(n1+2*padd) + idx]
-						 + arr1[idy * (n1+2*padd) + idx - 1] 
-						+ arr1[idy * (n1+2*padd) + idx] + arr1[idy * (n1+2*padd) + idx + 1] 
-						+ arr1[(idy+1)*(n1+2*padd) + idx]) / 5;
+				(*arr2)[idy * (n1+2*padd) + idx] = ((*arr1)[(idy-1)*(n1+2*padd) + idx]
+						 + (*arr1)[idy * (n1+2*padd) + idx - 1] 
+						+ (*arr1)[idy * (n1+2*padd) + idx] 
+						+ (*arr1)[idy * (n1+2*padd) + idx + 1] 
+						+ (*arr1)[(idy+1)*(n1+2*padd) + idx]) / 5;
 
 			}	
 		}
-		tmp = arr2;
-		arr2 = arr1;
-		arr1 = tmp;
+		tmp = *arr2;
+		*arr2 = *arr1;
+		*arr1 = tmp;
 //		displayInput(arr1, n1, n2, padd);
 	}
 
-	return arr1;
+	return *arr1;
 }
 
 
@@ -111,7 +112,7 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tbegin, NULL);
 	
-	int* res = SOR(n1, n2, padd, arr1, arr2, trial);
+	int* res = SOR(n1, n2, padd, &arr1, &arr2, trial);
 
 	gettimeofday(&tend, NULL);
 	

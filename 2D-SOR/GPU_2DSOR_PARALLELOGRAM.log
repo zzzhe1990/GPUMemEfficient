@@ -165,15 +165,21 @@ Completion:
 #######################################################
 Sep 2nd
 #######################################################
-Problem:
+Problem Solved:
 1. Incorrect result when "tileT == 1" and "total timestamp == 1".
+caused by: SOR.cpp file, incorrect pointer swap. Change from single pointer "*arr" to double pointers "**arr" for swap purpose.
 
 
+######################################################
+Sep 8th
+######################################################
+Problem:
+1. When tile size is "64 * 64" and "tileT <= 4", incorrect result returned and happened at the last batch.
+   If we change tile size to "32 * 32", there is no such issue;
+   If we change "tileT" to "8 or greater", we get incorrect result occasionally.
+   If there is only "1" time piece, which means "tileT == MAXTRIAL", we get correct result.
 
-
-
-
-
+   Inference: for tile size of "64 * 64", if number of batches in each layer is larger than the number of total streams, and "tileT" is smaller than "MAXTRIAL", the issue happens mostly when "tileT <= 8". The larger the "tileT", the less possibile that issue would occur. However, this senario does not show up when tile size is "32 * 32".
 
 
 
