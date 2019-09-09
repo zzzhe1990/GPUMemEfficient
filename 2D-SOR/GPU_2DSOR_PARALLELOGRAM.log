@@ -182,6 +182,20 @@ Problem:
    Inference: for tile size of "64 * 64", if number of batches in each layer is larger than the number of total streams, and "tileT" is smaller than "MAXTRIAL", the issue happens mostly when "tileT <= 8". The larger the "tileT", the less possibile that issue would occur. However, this senario does not show up when tile size is "32 * 32".
 
 
+#####################################################
+Sep 9th
+#####################################################
+Problem Solved:
+Sep 8th's problem is solved.
+	Solution: Remove the "read_time_lock_for_stream()" function from the last batch operations.
+	Reason: If last batch executes "read_time_lock_for_stream()", it is possible that this last batch cannot be started/executed because the first batch of next time layer is already started in the next stream.
+	Example: 4 streams, 6 batches, 2 time layers
+		s1	b1t1	b5t1	...
+		s2	b2t1	b6t1	...
+		s3	b3t1	b1t2	...
+		s4	b4t1	b2t2	...
+		
+		If the last batch executes "read_time_lock_for_stream()", "b6t1" has to check if "s3" already completes its previous work. Because "b1t2" is the first batch of the next layer, it is possible that "b1t2" is started on "s3" earlier than the beginning of "b6t1". In this case, "b6t1" cannot be executed because "s3" has already started a new work and "b6t1" can only be executed until "s3" complete "b1t2", which leads to incorrect memory read/write order.
 
 
 
