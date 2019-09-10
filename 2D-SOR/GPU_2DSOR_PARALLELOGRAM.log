@@ -198,6 +198,24 @@ Sep 8th's problem is solved.
 		If the last batch executes "read_time_lock_for_stream()", "b6t1" has to check if "s3" already completes its previous work. Because "b1t2" is the first batch of the next layer, it is possible that "b1t2" is started on "s3" earlier than the beginning of "b6t1". In this case, "b6t1" cannot be executed because "s3" has already started a new work and "b6t1" can only be executed until "s3" complete "b1t2", which leads to incorrect memory read/write order.
 
 
+Problem:
+1. performance issue: register/thread is too large, which restricts the occupancy.
+
+
+
+####################################################
+Sep 10th
+####################################################
+Complete:
+1. optimization is tried, but no significant efficiency improvement can be achieved.
+	a. Limit the total registers / thread by compiling with "--maxrregcount = 32".
+	b. Use "56" streams instead of "28" to ensure that two kernels can be executed concurrently on one SM.
+	c. Adjust "tileX, tileY" and "tileT" to compare the performance difference on different tile sizes and different time tile size.
+	d. Remove "__syncthreads()" and "__threadfence()".
+	e. Replace some local variables with the shared memory. See "dev_var" for details.
+
+To do:
+1. Try different stride problems, like 9-points SOR/Jacobi.
 
 
 
