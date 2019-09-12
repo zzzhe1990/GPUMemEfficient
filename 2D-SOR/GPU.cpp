@@ -68,15 +68,16 @@ void displayInput(int *arr, int n1, int n2, int padd){
 
 
 int main(int argc, char **argv){
-	int nn1, nn2, nn3;
-	if (argc != 4){
-		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
+	int nn1, nn2, trial, stride;
+	if (argc != 5){
+		cout << "Incorrect Input Parameters. 4 variables: two string sizes, one strial, one stride." << endl;
 		exit(EXIT_FAILURE);
 	}
 	else{
 		nn1 = atoi(argv[1]);
 		nn2 = atoi(argv[2]);
-		nn3 = atoi(argv[3]);
+		trial = atoi(argv[3]);
+		stride = atoi(argv[4]);
 	}
 
 	ostringstream convert1, convert2;
@@ -93,6 +94,7 @@ int main(int argc, char **argv){
 	filename.append(convert1.str());
 	filename.append(filename2.c_str());
 	filename.append(convert2.str());
+	filename.append("_STRIDE_" + std::to_string(stride));
 
 	string str1;
 	str1.append(filepath);
@@ -111,7 +113,7 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tbegin, NULL);
 	
-	SOR(n1, n2, padd, arr1, arr2, nn3);
+	SOR(n1, n2, padd, arr1, arr2, trial);
 
 	gettimeofday(&tend, NULL);
 

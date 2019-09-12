@@ -4,18 +4,25 @@
 #include<string>
 #include<sys/time.h>
 
-//#define PRINT_FINAL_RESULT
+#define PRINT_FINAL_RESULT
 typedef unsigned long long int UINT;
 
 using namespace std;
 
+__device__ void _5pt_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	dev_arr2[idx] = (dev_arr1[idx-1] + dev_arr1[idx-rowsize] + dev_arr1[idx] + dev_arr1[idx+1] + dev_arr1[idx+rowsize]) / 5;	
+}
+
+__device__ void _9pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	dev_arr2[idx] = (dev_arr1[idx - rowsize - 1] + dev_arr1[idx - rowsize] + dev_arr1[idx - rowsize + 1] + dev_arr1[idx-1] + dev_arr1[idx] + dev_arr1[idx + 1] + dev_arr1[idx + rowsize - 1] + dev_arr1[idx+rowsize] + dev_arr1[idx + rowsize + 1]) / 9;	
+}
 __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, 
 			const int colsize, const int n1, const int threadsPerBlock, int padd){
 	int offset = rowsize * blockIdx.x + padd;
 	int idx = threadIdx.x + offset;
 	while (idx < n1 + offset){
-		dev_arr2[idx] = (dev_arr1[idx-1] + dev_arr1[idx-rowsize] + dev_arr1[idx]
-				+ dev_arr1[idx+1] + dev_arr1[idx+rowsize]) / 5;	
+		//_5pt_SOR(dev_arr1, dev_arr2, idx, rowsize);
+		_9pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
 		idx += threadsPerBlock;
 	}	
 	__threadfence();	

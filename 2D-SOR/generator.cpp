@@ -10,23 +10,24 @@ using namespace std;
 int main(int argc, char *argv[]){
 	int n1, n2;
 	//paddsize is determined by the neighbor elements stride
-	int paddsize = 2;
+	int stride;
 	string path = "./Data/";	
 	string filename1 = "x_2_";
 	string filename2 = "_y_2_";
 	string fileformat = ".txt";	
 	
-	if (argc != 3){
-		cout << "Incorrect parameters have been passed." << endl;
+	if (argc != 4){
+		cout << "Incorrect parameters have been passed. Two potential for sizes, and one stride" << endl;
 		exit(0);
 	}	
 	else{
 		n1 = atoi(argv[1]);
 		n2 = atoi(argv[2]);	
+		stride = atoi(argv[3]);
 	}
 
 	int size1, size2;
-	
+	int paddsize = stride * 2;
 	size1 = pow(2, n1);
 	size2 = pow(2, n2);
 
@@ -50,6 +51,7 @@ int main(int argc, char *argv[]){
 		filename1.append( std::to_string(n1) );
 		filename2.append( std::to_string(n2) );
 		filename1.append( filename2 );
+		filename1.append( "_STRIDE_" + std::to_string(stride));
 		path.append(filename1);
 		path.append(fileformat);
 

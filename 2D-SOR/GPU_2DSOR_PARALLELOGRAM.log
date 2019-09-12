@@ -214,14 +214,24 @@ Complete:
 	d. Remove "__syncthreads()" and "__threadfence()".
 	e. Replace some local variables with the shared memory. See "dev_var" for details.
 
+2. _9pt_SQUARE_SOR() is completed in CUDA files and CPP file, and returns correct result.
+
 To do:
 1. Try different stride problems, like 9-points SOR/Jacobi.
 
 
 
+####################################################
+Sep 11th
+####################################################
+To do:
+1. remove "swap()" function.
 
 
-
+Complete:
+1. Debug code to accept "stride > 1" problems. 
+	Now, pass test case: 16 * 16 matrix, trial == 2, tileT == 2, 8 * 8 tile
+	However, failed test case: 16 * 16 matrix, trial == 4, tileT == 2, 8 * 8 tile.
 
 
 

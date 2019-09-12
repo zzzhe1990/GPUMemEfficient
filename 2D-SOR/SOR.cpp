@@ -41,6 +41,19 @@ void displayInput(int *arr, int n1, int n2, int padd){
 	}
 }
 
+int _5ptSOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	return ((*arr1)[(idy-1)*(n1+2*padd) + idx] + (*arr1)[idy * (n1+2*padd) + idx - 1] + (*arr1)[idy * (n1+2*padd) + idx] + (*arr1)[idy * (n1+2*padd) + idx + 1] + (*arr1)[(idy+1)*(n1+2*padd) + idx]) / 5;
+}
+
+int _9pt_SQUARE_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	return ((*arr1)[(idy-1)*(n1+2*padd) + idx - 1] + (*arr1)[(idy - 1) * (n1+2*padd) + idx] + (*arr1)[(idy - 1) * (n1+2*padd) + idx + 1] + (*arr1)[idy * (n1+2*padd) + idx - 1] + (*arr1)[idy*(n1+2*padd) + idx] + (*arr1)[idy * (n1+2*padd) + idx + 1] + (*arr1)[(idy+1) * (n1+2*padd) + idx - 1] + (*arr1)[(idy+1) * (n1+2*padd) + idx] + (*arr1)[(idy+1) * (n1+2*padd) + idx + 1]) / 9;
+}
+
+int _9pt_CROSS_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	return ((*arr1)[(idy-1)*(n1+2*padd) + idx] + (*arr1)[(idy - 2) * (n1+2*padd) + idx] + (*arr1)[(idy + 1) * (n1+2*padd) + idx] + (*arr1)[(idy + 2) * (n1+2*padd) + idx] + (*arr1)[idy*(n1+2*padd) + idx - 2] + (*arr1)[idy * (n1+2*padd) + idx - 1] + (*arr1)[idy * (n1+2*padd) + idx] + (*arr1)[idy * (n1+2*padd) + idx + 1] + (*arr1)[idy * (n1+2*padd) + idx + 2]) / 9;
+}
+
+
 int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 	int *tmp;
 	for (int t=0; t < trial; t++){
@@ -48,18 +61,15 @@ int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 			for (int x = padd; x < n1 + padd; x++){
 				int idx = x;
 				int idy = y;
-				(*arr2)[idy * (n1+2*padd) + idx] = ((*arr1)[(idy-1)*(n1+2*padd) + idx]
-						 + (*arr1)[idy * (n1+2*padd) + idx - 1] 
-						+ (*arr1)[idy * (n1+2*padd) + idx] 
-						+ (*arr1)[idy * (n1+2*padd) + idx + 1] 
-						+ (*arr1)[(idy+1)*(n1+2*padd) + idx]) / 5;
-
+				(*arr2)[idy * (n1 + 2 * padd) + idx] = _5ptSOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _9pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _9pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 			}	
 		}
 		tmp = *arr2;
 		*arr2 = *arr1;
 		*arr1 = tmp;
-//		displayInput(arr1, n1, n2, padd);
+//		displayInput(*arr1, n1, n2, padd);
 	}
 
 	return *arr1;
@@ -68,15 +78,16 @@ int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 
 
 int main(int argc, char **argv){
-	int nn1, nn2, trial;
-	if (argc != 4){
-		cout << "Incorrect Input Parameters. Must be two string sizes." << endl;
+	int nn1, nn2, trial, stride;
+	if (argc != 5){
+		cout << "Incorrect Input Parameters. 4 variables: two string sizes, one trial, one stride." << endl;
 		exit(EXIT_FAILURE);
 	}
 	else{
 		nn1 = atoi(argv[1]);
 		nn2 = atoi(argv[2]);
 		trial = atoi(argv[3]);
+		stride = atoi(argv[4]);
 	}
 
 	ostringstream convert1, convert2;
@@ -93,6 +104,7 @@ int main(int argc, char **argv){
 	filename.append(convert1.str());
 	filename.append(filename2.c_str());
 	filename.append(convert2.str());
+	filename.append("_STRIDE_" + std::to_string(stride));
 
 	string str1;
 	str1.append(filepath);
