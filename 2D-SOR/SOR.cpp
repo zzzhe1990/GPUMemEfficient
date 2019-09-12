@@ -53,6 +53,15 @@ int _9pt_CROSS_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int
 	return ((*arr1)[(idy-1)*(n1+2*padd) + idx] + (*arr1)[(idy - 2) * (n1+2*padd) + idx] + (*arr1)[(idy + 1) * (n1+2*padd) + idx] + (*arr1)[(idy + 2) * (n1+2*padd) + idx] + (*arr1)[idy*(n1+2*padd) + idx - 2] + (*arr1)[idy * (n1+2*padd) + idx - 1] + (*arr1)[idy * (n1+2*padd) + idx] + (*arr1)[idy * (n1+2*padd) + idx + 1] + (*arr1)[idy * (n1+2*padd) + idx + 2]) / 9;
 }
 
+int _25pt_SQUARE_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	int total = 0;
+	for (int i = -2; i <= 2; i++){
+		for (int j = -2; j <= 2; j++){
+			total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx + j];
+		}
+	}
+	return total / 9;
+}
 
 int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 	int *tmp;
@@ -61,9 +70,10 @@ int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 			for (int x = padd; x < n1 + padd; x++){
 				int idx = x;
 				int idy = y;
-				(*arr2)[idy * (n1 + 2 * padd) + idx] = _5ptSOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _5ptSOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _9pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _9pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+				(*arr2)[idy * (n1 + 2 * padd) + idx] = _25pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 			}	
 		}
 		tmp = *arr2;

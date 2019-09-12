@@ -234,6 +234,13 @@ Complete:
 	However, failed test case: 16 * 16 matrix, trial == 4, tileT == 2, 8 * 8 tile.
 
 
+####################################################
+Sep 12nd
+####################################################
+Complete:
+1. "stride > 1" is now working properly.
+2. Development work is basically completed.
+
 
 
 

@@ -9,7 +9,7 @@
 //#define PRINT_FIRST_BATCH
 //#define PRINT_MID_BATCH
 //#define PRINT_LAST_BATCH
-#define PRINT_FINAL_RESULT
+//#define PRINT_FINAL_RESULT
 #define FIRST_BATCH
 #define LAST_BATCH
 #define MID_BATCH
@@ -31,11 +31,20 @@ __device__ void _9pt_SQUARE_SOR(volatile int* tile1, volatile int* tile2, int ne
 	tile2[newtilePos] = (tile1[tilePos - segLengthX[0] - 1] + tile1[tilePos - segLengthX[0]] + tile1[tilePos - segLengthX[0] + 1] + tile1[tilePos - 1] + tile1[tilePos] + tile1[tilePos + 1] + tile1[tilePos + segLengthX[0] - 1] + tile1[tilePos + segLengthX[0]] + tile1[tilePos + segLengthX[0] + 1]) / 9;
 }
 
-
+__device__ void _25pt_SQUARE_SOR(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
+	int total = 0;
+	for (int i = -2; i <= 2; i++){
+		for (int j = -2; j <= 2; j++){
+			total += tile1[tilePos + i * segLengthX[0] + j];
+		}
+	}
+	tile2[newtilePos] = total / 9;
+}
 __device__ void stencil(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
-	_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_9pt_CROSS_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+	_25pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 }
 
 
@@ -585,7 +594,7 @@ __syncthreads();
 #endif
 			for (int tt=0; tt<tileT; tt++){
 				moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
-				moveInterDepToTileEdge(&dev_arr[batchStartAddress], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt * stride[0], tileX[0], 0);
+				moveInterDepToTileEdge(&dev_arr[batchStartAddress], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt, tileX[0], 0);
 				__threadfence();
 				__syncthreads();
 #ifdef PRINT_FIRST_BATCH
@@ -1493,15 +1502,28 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	int dep_stride = padd;
 	int tileX = 64;
 	int tileY = 64;
+	//the shared memory available for intra_dep array.
+	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + padd) * (tileY + padd) * 2;
 	//tileT is restriced by "tileY" and "intra_dep" shared array size.
 	int tileT = min(16, min(tileX, tileY));
 	tileT = tileT > MAXTRIAL ? MAXTRIAL : tileT;
+	//because of the shift during calculation, the total shift distance for tileT iteration must be smaller than min(tileX, tileY).
+	//total shift distance = tileT * stride;
 	tileT = (tileT * stride) >= min(tileX, tileY) ? min(tileX, tileY) / stride / 2 : tileT;
+	//compare required shared memory to available shared memory for intra_dep array.
+	while (tileT * padd * tileY > intra_size){
+		tileT = tileT / 2;
+	}
 	if (tileT < 2){
-		cout << "time tile size is smaller than 2, please adjust shared memory array size to allow a larger tileT." << endl;
+		cout << "time tile size is smaller than 2, please reduce tileX and tileY size to reserve larger shared memory capacity for intra_dep array." << endl;
 		exit(-1);
 	}
-	int numStream = 28;
+
+	int xseg = n1 / tileX + 1;
+	int yseg = n2 / tileY + 1;
+	int tseg = (MAXTRIAL + tileT - 1) / tileT;
+	int numStream = min(28, yseg);
+	int stream_offset = yseg % numStream;
 
 //PTilesPerTimestamp is the number of parallelgoram tiles can be scheduled at each time stamp
 //	int PTilesPerTimestamp = (n1/tileX) * (n2/tileY); 
@@ -1539,11 +1561,6 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	err = cudaMalloc(&dev_inter_stream_dependence, inter_stream_dependence * sizeof(int));
 	checkGPUError(err);
 
-	int xseg = n1 / tileX + 1;
-	int yseg = n2 / tileY + 1;
-	int tseg = (MAXTRIAL + tileT - 1) / tileT;
-	int stream_offset = yseg % numStream;
-	
 	lock = new int[tseg * yseg];
 	for (int i = 0; i < tseg; i++){
 		int idx = i * yseg;
