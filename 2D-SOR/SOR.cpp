@@ -60,8 +60,58 @@ int _25pt_SQUARE_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, i
 			total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx + j];
 		}
 	}
-	return total / 9;
+	return total / 25;
 }
+
+int _13pt_CROSS_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	int total = 0;
+	for (int i = -3; i < 0; i++){
+		total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx];
+	}
+	for (int i = 1; i <= 3; i++){
+		total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx];
+	}
+	for (int i = -3; i <= 3; i++){
+		total += (*arr1)[idy * (n1 + 2 * padd) + idx + i];
+	}
+	return total / 13;
+}
+
+int _49pt_SQUARE_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	int total = 0;
+	for (int i = -3; i <= 3; i++){
+		for (int j = -3; j <= 3; j++){
+			total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx + j];
+		}
+	}
+	return total / 49;
+}
+
+int _17pt_CROSS_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	int total = 0;
+	for (int i = -4; i < 0; i++){
+		total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx];
+	}
+	for (int i = 1; i <= 4; i++){
+		total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx];
+	}
+	for (int i = -4; i <= 4; i++){
+		total += (*arr1)[idy * (n1 + 2 * padd) + idx + i];
+	}
+	return total / 17;
+}
+
+int _81pt_SQUARE_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, int padd){
+	int total = 0;
+	for (int i = -4; i <= 4; i++){
+		for (int j = -4; j <= 4; j++){
+			total += (*arr1)[(idy + i) * (n1 + 2 * padd) + idx + j];
+		}
+	}
+	return total / 81;
+}
+
+
 
 int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 	int *tmp;
@@ -73,7 +123,11 @@ int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _5ptSOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _9pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _9pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
-				(*arr2)[idy * (n1 + 2 * padd) + idx] = _25pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _25pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _13pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _49pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _17pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+				(*arr2)[idy * (n1 + 2 * padd) + idx] = _81pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 			}	
 		}
 		tmp = *arr2;

@@ -28,9 +28,58 @@ __device__ void _25pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rows
 			total += dev_arr1[idx + i * rowsize + j];
 		}
 	}
-	dev_arr2[idx] = total / 9;
+	dev_arr2[idx] = total / 25;
+}
+
+__device__ void _13pt_CROSS_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	int total = 0;
+	for (int i = -3; i < 0; i++){
+		total += dev_arr1[idx + i * rowsize];
+	}
+	for (int i = 1; i <= 3; i++){
+		total += dev_arr1[idx + i * rowsize];
+	}
+	for (int i = -3; i <= 3; i++){
+		total += dev_arr1[idx + i];
+	}
+	dev_arr2[idx] = total / 13;
+}
+
+__device__ void _49pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	int total = 0;
+	for (int i = -3; i <= 3; i++){
+		for (int j = -3; j <= 3; j++){
+			total += dev_arr1[idx + i * rowsize + j];
+		}
+	}
+	dev_arr2[idx] = total / 49;
 }
 	
+__device__ void _17pt_CROSS_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	int total = 0;
+	for (int i = -4; i < 0; i++){
+		total += dev_arr1[idx + i * rowsize];
+	}
+	for (int i = 1; i <= 4; i++){
+		total += dev_arr1[idx + i * rowsize];
+	}
+	for (int i = -4; i <= 4; i++){
+		total += dev_arr1[idx + i];
+	}
+	dev_arr2[idx] = total / 17;
+}
+
+__device__ void _81pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	int total = 0;
+	for (int i = -4; i <= 4; i++){
+		for (int j = -4; j <= 4; j++){
+			total += dev_arr1[idx + i * rowsize + j];
+		}
+	}
+	dev_arr2[idx] = total / 81;
+}
+
+
 __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, 
 			const int colsize, const int n1, const int threadsPerBlock, int padd){
 	int offset = rowsize * blockIdx.x + padd;
@@ -39,7 +88,11 @@ __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize,
 //		_5pt_SOR(dev_arr1, dev_arr2, idx, rowsize);
 //		_9pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
 //		_9pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
-		_25pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
+//		_25pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
+//		_13pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
+//		_49pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
+//		_17pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
+		_81pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
 
 		idx += threadsPerBlock;
 	}	
@@ -88,7 +141,7 @@ void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL){
 		dev_arr1 = dev_arr2;
 		dev_arr2 = tmp;
 	}
-
+	cudaDeviceSynchronize();
 	gettimeofday(&tend, NULL);
 	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec) / 1000000.0;
 

@@ -14,8 +14,9 @@
 #define LAST_BATCH
 #define MID_BATCH
 #define TIME_LOCK
+#define SYNC
 
-const int MAX_THREADS_PER_BLOCK = 512;
+const int MAX_THREADS_PER_BLOCK = 1024;
 using namespace std;
 __device__ int row = 0;
 
@@ -38,13 +39,68 @@ __device__ void _25pt_SQUARE_SOR(volatile int* tile1, volatile int* tile2, int n
 			total += tile1[tilePos + i * segLengthX[0] + j];
 		}
 	}
-	tile2[newtilePos] = total / 9;
+	tile2[newtilePos] = total / 25;
 }
+
+__device__ void _13pt_CROSS_SOR(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
+	int total = 0;
+	for (int i = -3; i < 0; i++){
+		total += tile1[tilePos + i * segLengthX[0]];
+	}
+	for (int i = 1; i <= 3; i++){
+		total += tile1[tilePos + i * segLengthX[0]];
+	}
+	for (int i = -3; i <= 3; i++){
+		total += tile1[tilePos + i];
+	}
+	tile2[newtilePos] = total / 13;
+}
+
+__device__ void _49pt_SQUARE_SOR(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
+	int total = 0;
+	for (int i = -3; i <= 3; i++){
+		for (int j = -3; j <= 3; j++){
+			total += tile1[tilePos + i * segLengthX[0] + j];
+		}
+	}
+	tile2[newtilePos] = total / 49;
+}
+
+__device__ void _17pt_CROSS_SOR(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
+	int total = 0;
+	for (int i = -4; i < 0; i++){
+		total += tile1[tilePos + i * segLengthX[0]];
+	}
+	for (int i = 1; i <= 4; i++){
+		total += tile1[tilePos + i * segLengthX[0]];
+	}
+	for (int i = -4; i <= 4; i++){
+		total += tile1[tilePos + i];
+	}
+	tile2[newtilePos] = total / 17;
+}
+
+__device__ void _81pt_SQUARE_SOR(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
+	int total = 0;
+	for (int i = -4; i <= 4; i++){
+		for (int j = -4; j <= 4; j++){
+			total += tile1[tilePos + i * segLengthX[0] + j];
+		}
+	}
+	tile2[newtilePos] = total / 81;
+}
+
+
+
 __device__ void stencil(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
 //	_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_9pt_CROSS_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-	_25pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_25pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_13pt_CROSS_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_49pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_17pt_CROSS_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+	_81pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 }
 
 
@@ -396,9 +452,12 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int* dev_var, int 
 	//tile size stored in the shared array could be as large as 64 * 64
 	//shared "tile" size is up to "71 * 71", which includes the target "tile", which is "64 * 64", "intra_dep" data entries and "inter_dep" data entries.
 	//intra_dep size is restricted by the "dep_stride", "tileY", and "tileT"
-	volatile __shared__ int tile1[5041];
-	volatile __shared__ int tile2[5041];
-	__shared__ int intra_dep[2190];
+//	volatile __shared__ int tile1[4900];
+//	volatile __shared__ int tile2[4900];
+//	__shared__ int intra_dep[2470];
+	volatile __shared__ int tile1[2116];
+	volatile __shared__ int tile2[2116];
+	__shared__ int intra_dep[8040];
 	__shared__ int YoverX[1];
 	__shared__ int dep_stride[1];
 	__shared__ int segLengthX[1];
@@ -448,8 +507,10 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int* dev_var, int 
 #endif
 #ifdef FIRST_BATCH
 		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX[0], tileY, dep_stride, tileAddress, width, warpbatch);
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d, dep_stride: %d\n", curBatch, timepiece, curSMStream, nextSMStream, dep_stride[0]);
@@ -488,8 +549,6 @@ __syncthreads();
 				//Because the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 				if (xidx > 0 && xidx < tileX[0] - tt * stride[0] && yidx > 0 && yidx < tileY[0] - tt * stride[0]){
 					stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-//					_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-//					_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 				}
 			}
 			__threadfence();
@@ -505,8 +564,11 @@ __syncthreads();
 			//Since the tile size is reduced along the calculation, the intraDep elements (in last two column of the valid tile) is also shifted to left.
 			//Set variable isRegular == 1, when there is a size reduction. 
 			moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, stride, 1, tileY[0]);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
+
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -517,8 +579,10 @@ __syncthreads();
 #endif
 			//first tile has to copy the out-of-range elements, which are on the left-hand side, to next stream's inter_stream_dep array
 			moveTileToInterDepEdge(tile1, inter_stream_dep, tt, tileY, tileT, nextSMStream, dep_stride, stride, segLengthX, n1, 1);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep_edge: \n");
@@ -530,8 +594,10 @@ __syncthreads();
 			//variable isRegular == 1, because one row is shifted out-side-of the upper boundary
 			//variable len == tileX-tt because this tile is not in a regular size.
 			moveTileToInterDep(&inter_stream_dep[0], tile1, tt, tileX, tileY, dep_stride, stride, nextSMStream, tileT, n1, segLengthX, tileIdx, tileX[0] - tt * stride[0], 1);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep: \n");
@@ -564,8 +630,10 @@ __syncthreads();
 		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 		glbPos = tileAddress;	
 		moveShareToGlobalEdge(tile1, dev_arr, glbPos, tileT * stride[0], tileT * stride[0], tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 		__threadfence();
@@ -582,8 +650,10 @@ __syncthreads();
 			//copy the base spatial data to shared memory for t=0.
 #ifdef FIRST_BATCH
 			moveMatrixToTile(dev_arr, tile1, segLengthX, tileX[0], tileY, dep_stride, tileAddress, width, warpbatch);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("move data matrix to tile %d: \n", tileIdx);
@@ -620,8 +690,6 @@ __syncthreads();
 					//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 					//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 					if (yidx > 0 && yidx < tileY[0] - tt * stride[0]){
-						//_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-						//_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 						stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 					}
 				}	
@@ -637,8 +705,10 @@ __syncthreads();
 #endif	
 				//Set variable isRegular == 0 to disable the tile size reduction, when tile size are constant during the calculation. 
 				moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, stride, 0, tileY[0]);
+#ifdef SYNC
 				__threadfence();
 				__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -650,8 +720,10 @@ __syncthreads();
 				//variable isRegular == 1 because one row is shifted out-side-of the upper boundary.
 				//variable len == tileX-tt because row is shifted out-side-of the upper boundary
 				moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, stride, nextSMStream, tileT, n1, segLengthX, tileIdx, tileX[0], 1);
+#ifdef SYNC
 				__threadfence();
 				__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep: \n");
@@ -685,8 +757,10 @@ __syncthreads();
 			//ignLenX == 0 because all elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 			glbPos = tileAddress - tileT * stride[0];	
 			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileT, tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 			__syncthreads();
 			__threadfence();
+#endif
 #ifdef PRINT_FIRST_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -707,8 +781,10 @@ __syncthreads();
 #ifdef FIRST_BATCH
 		//The last tile of each batch may not have complete tileX data entries at each row. Thus, the size of each row is not tileX.
 		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, n1[0] % tileX[0], tileY, dep_stride, tileAddress, width, warpbatch);
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("move data matrix to tile %d: \n", tileIdx);
@@ -765,8 +841,10 @@ __syncthreads();
 			//len = n1 % tileX + dep_stride + tt, variable len specifies the lenth of eligible elements should be moved to inter_stream_dep[].
 			int len = n1[0] % tileX[0] + tt * stride[0];
 			moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, stride, nextSMStream, tileT, n1, segLengthX, tileIdx, len, 1);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep: \n");
@@ -799,8 +877,10 @@ __syncthreads();
 		//ignLenX == tileX-tileT because tileT elements are copied at each row, ignLenY == tileT because tileY-tileT elements are copied at each column.
 		glbPos = tileAddress;	
 		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX[0] - tileT * stride[0], tileT * stride[0], tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_FIRST_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -869,8 +949,6 @@ __syncthreads();
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 				if (xidx>0 && xidx < tileX[0] - tt * stride[0] && yidx < (tt + 1) * stride[0]){
-					//_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-					//_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 					stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 				}
 			}	
@@ -880,8 +958,10 @@ __syncthreads();
 			//Since the tile size is reduced along the calculation, the intraDep elements (in last two column of the valid tile) is also shifted to left.
 			//Set variable isRegular == 1, when there is a size reduction. 
 			moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, stride, 1, tt * stride[0]);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_LAST_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -914,8 +994,10 @@ __syncthreads();
 		glbPos = batchStartAddress - tileT * stride[0] * width[0] + tileIdx * tileX[0];
 		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
 		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, tileY[0] - tileT * stride[0], tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_LAST_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -967,8 +1049,6 @@ __syncthreads();
 					//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 					//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 					if (xidx < (tt + 1) * stride[0]){
-						//_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-						//_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 						stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 					}
 				}	
@@ -976,8 +1056,10 @@ __syncthreads();
 				__syncthreads();
 				//isRegular == 0 to disable the tile size reduction, when tile size are constant during the calculation. 
 				moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, stride, 0, tt * stride[0]);
+#ifdef SYNC
 				__threadfence();
 				__syncthreads();
+#endif
 #ifdef PRINT_LAST_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -1010,8 +1092,10 @@ __syncthreads();
 			glbPos = batchStartAddress - tileT * stride[0] * width[0] + tileIdx * tileX[0] - tileT * stride[0];
 			//ignLenX == 0 because all elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
 			moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, 0, tileY[0] - tileT * stride[0], tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_LAST_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -1064,8 +1148,6 @@ __syncthreads();
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation
 				if (xidx < (tt + 1) * stride[0] && yidx < (tt + 1) * stride[0]){
-					//_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-					//_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 					stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 				}
 			}	
@@ -1097,8 +1179,10 @@ __syncthreads();
 		glbPos = batchStartAddress - tileT * stride[0] * width[0] + tileIdx * tileX[0] - tileT * stride[0];	
 		//ignLenX == tileX-tileT because tileT elements are copied at each row, ignLenY == tileY-tileT because tileT elements are copied at each column.
 		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX[0] - tileT * stride[0], tileY[0] - tileT * stride[0], tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_LAST_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -1125,8 +1209,10 @@ __syncthreads();
 #endif
 #ifdef MID_BATCH
 		moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX[0], tileY, dep_stride, tileAddress, width, warpbatch);
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("This is curBatch: %d, timepiece: %d, curStream: %d, nextSMStream: %d\n", curBatch, timepiece, curSMStream, nextSMStream);
@@ -1170,8 +1256,6 @@ __syncthreads();
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 				if (xidx > 0 && xidx < tileX[0] - tt * stride[0]){
-					//_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-					//_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 					stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 				}
 			}	
@@ -1189,8 +1273,10 @@ __syncthreads();
 			//Since the tile size is reduced along the calculation, the intraDep elements (in last two column of the valid tile) is also shifted to left.
 			//Set variable isRegular == 1, when there is a size reduction. 
 			moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, stride, 1, tileY[0]);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -1201,8 +1287,10 @@ __syncthreads();
 #endif
 			//first tile has to copy the out-of-range elements, which are on the left-hand side, to next stream's inter_stream_dep array
 			moveTileToInterDepEdge(&tile1[0], inter_stream_dep, tt, tileY, tileT, nextSMStream, dep_stride, stride, segLengthX, n1, 0);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep_edge: \n");
@@ -1214,8 +1302,10 @@ __syncthreads();
 			//variable len == tileX-tt because the tile size is reduced during calculation.
 			//isRegular == 0 because there is no row move out-side-of upper boundary
 			moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, stride, nextSMStream, tileT, n1, segLengthX, tileIdx, tileX[0] - tt * stride[0], 0);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep: \n");
@@ -1248,8 +1338,10 @@ __syncthreads();
 		//ignLenX == tileT because tileX-tileT elements are copied at each row, ignLenY == 0 because no size reduction along Y dim.
 		glbPos = tileAddress - tileT * stride[0] * width[0];	
 		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileT, 0, tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -1266,8 +1358,10 @@ __syncthreads();
 			//copy the base spatial data to shared memory for t=0.
 #ifdef MID_BATCH
 			moveMatrixToTile(dev_arr, &tile1[0], segLengthX, tileX[0], tileY, dep_stride, tileAddress, width, warpbatch);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("move data matrix to tile %d: \n", tileIdx);
@@ -1300,8 +1394,6 @@ __syncthreads();
 					tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 					//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array
 					newtilePos = dep_stride[0] * segLengthX[0] + dep_stride[0] + yidx * segLengthX[0] + xidx;
-					//_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-					//_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 					stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 				}	
 				__threadfence();
@@ -1316,8 +1408,10 @@ __syncthreads();
 #endif				
 				//isRegular == 0 to disable the tile size reduction, when tile size are constant during the calculation. 
 				moveTileToIntraDep(&intra_dep[0], &tile1[0], tt, tileX, tileY, segLengthX, dep_stride, stride, 0, tileY[0]);
+#ifdef SYNC
 				__threadfence();
 				__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("intra_dep: \n");
@@ -1328,8 +1422,10 @@ __syncthreads();
 #endif
 				//variable len == tileX because the tile size is constant.
 				moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, stride, nextSMStream, tileT, n1, segLengthX, tileIdx, tileX[0], 0);
+#ifdef SYNC
 				__threadfence();
 				__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep: \n");
@@ -1361,8 +1457,10 @@ __syncthreads();
 			//when curBatch > 0 && tileIdx > 0, glbPos is shifted up and left by tileT unit from tileAddress, complete tile is moved,
 			glbPos = tileAddress - tileT * stride[0] * width[0] - tileT * stride[0];	
 			moveShareToGlobal(&tile1[0], dev_arr, glbPos, tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -1414,8 +1512,6 @@ __syncthreads();
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation
 				if (xidx < (tt + 1) * stride[0]){
-					//_9pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-					//_5ptSOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 					stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 				}
 			}	
@@ -1433,8 +1529,10 @@ __syncthreads();
 			//len = tileX-1-tt, variable len specifies the lenth of eligible elements should be moved to inter_stream_dep[].
 			int len = n1[0] % tileX[0] + dep_stride[0] + tt * stride[0];
 			moveTileToInterDep(&inter_stream_dep[0], &tile1[0], tt, tileX, tileY, dep_stride, stride, nextSMStream, tileT, n1, segLengthX, tileIdx, len, 0);
+#ifdef SYNC
 			__threadfence();
 			__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 if (threadIdx.x == 0){
 	printf("inter_dep: \n");
@@ -1467,8 +1565,10 @@ __syncthreads();
 		//ignLenX == tileX-tileT because only tileT elements are copied in each row, ignLenY == 0 because no size reduction along Y dim.
 		glbPos = tileAddress - tileT * stride[0] * width[0];	
 		moveShareToGlobalEdge(&tile1[0], dev_arr, glbPos, tileX[0] - tileT * stride[0], 0, tileX, tileY, dep_stride, width, segLengthX);	
+#ifdef SYNC
 		__threadfence();
 		__syncthreads();
+#endif
 #ifdef PRINT_MID_BATCH
 		printGlobal(dev_arr, width, height, curSMStream);
 __threadfence();
@@ -1500,19 +1600,22 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 //For example: F(x) = T(x-1) + T(x) + T(x+1), stride = 1
 //when we change stride, we also need to update parameter "paddsize" in data generator file.
 	int dep_stride = padd;
-	int tileX = 64;
-	int tileY = 64;
+	int tileX = 32;
+	int tileY = 32;
 	//the shared memory available for intra_dep array.
-	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + padd) * (tileY + padd) * 2;
+	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
 	//tileT is restriced by "tileY" and "intra_dep" shared array size.
-	int tileT = min(16, min(tileX, tileY));
+	int tileT = min(8, min(tileX, tileY));
 	tileT = tileT > MAXTRIAL ? MAXTRIAL : tileT;
+	//compare required shared memory to available shared memory for intra_dep array.
+	while (tileT * dep_stride * tileY > intra_size){
+		tileT--;
+	}
 	//because of the shift during calculation, the total shift distance for tileT iteration must be smaller than min(tileX, tileY).
 	//total shift distance = tileT * stride;
-	tileT = (tileT * stride) >= min(tileX, tileY) ? min(tileX, tileY) / stride / 2 : tileT;
-	//compare required shared memory to available shared memory for intra_dep array.
-	while (tileT * padd * tileY > intra_size){
-		tileT = tileT / 2;
+	tileT = (tileT * stride) >= min(tileX, tileY) ? min(tileX, tileY) / stride - 1 : tileT;
+	while (MAXTRIAL % tileT != 0){
+		tileT--;
 	}
 	if (tileT < 2){
 		cout << "time tile size is smaller than 2, please reduce tileX and tileY size to reserve larger shared memory capacity for intra_dep array." << endl;
@@ -1522,9 +1625,12 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	int xseg = n1 / tileX + 1;
 	int yseg = n2 / tileY + 1;
 	int tseg = (MAXTRIAL + tileT - 1) / tileT;
-	int numStream = min(28, yseg);
+	int numStream = min(56, yseg);
 	int stream_offset = yseg % numStream;
 
+#ifdef PRINT_FINAL_RESULT
+	cout << "Final Matrix after a total of " << MAXTRIAL << " time stamps, which are completed as a batch for every " << tileT << endl;
+#endif
 //PTilesPerTimestamp is the number of parallelgoram tiles can be scheduled at each time stamp
 //	int PTilesPerTimestamp = (n1/tileX) * (n2/tileY); 
 //ZTilesPerTimestamp is the number of trapezoid tiles (overlaped tiles) needed to calculate the uncovered area at each time stamp.
@@ -1599,12 +1705,6 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 
 //t < MAXTRIAL? or t <= MAXTRIAL	
 	for(int t = 0; t < MAXTRIAL; t+= tileT){
-//GPU_ZTile() is the kernel function to calculate the update result, unconvered by Parallelgoram tiling.
-//These data are calculated with trapezoid tiling, thus they can be launched concurrently.
-// ZTile and cudaDeviceSynchronize() will stop theparallelism along the temporal dimension and force
-//the beginning of the new t tiles has to wait the completion of the previous t tiles.
-//		GPU_ZTile<<<>>>();
-//		cudaDeviceSynchronize();		
 		for(int curBatch = 0; curBatch < yseg; curBatch++){
 //Have to change the stream Index so that the stream for next time tile can start without waiting for the 
 //completion of the previous time tile. 
@@ -1625,13 +1725,12 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 		//this global synchronization enforces the sequential computation along t dimension.
 //		cudaDeviceSynchronize();
 	}
-
+	cudaDeviceSynchronize();
 	gettimeofday(&tend, NULL);
 
 	err = cudaMemcpy(arr, (void*)dev_arr, tablesize*sizeof(int), cudaMemcpyDeviceToHost);
 	checkGPUError(err);
 #ifdef PRINT_FINAL_RESULT
-	cout << "Final Matrix after a total of " << MAXTRIAL << " time stamps, which are completed as a batch for every " << tileT << endl;
        	for (int r = 0; r < height; r++){
 		for (int c = 0; c < width; c++){
 			cout << arr[r * width + c] << " ";
