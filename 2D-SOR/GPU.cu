@@ -9,6 +9,32 @@ typedef unsigned long long int UINT;
 
 using namespace std;
 
+__device__ int dist = 4;
+
+__device__ void _jacobi_square(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	int total = 0;
+	for (int row = -dist; row <= dist; row++){
+		for (int col = -dist; col <= dist; col++){
+			total += dev_arr1[idx + row * rowsize + col];
+		}
+	}
+	dev_arr2[idx] = total / (dist + dist + 1) / (dist + dist + 1);
+}
+
+__device__ void _jacobi_cross(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+	int total = 0;
+	for (int row = -dist; row < 0; row++){
+		total += dev_arr1[idx + row * rowsize];
+	}
+	for (int row = 1; row <= dist; row++){
+		total += dev_arr1[idx + row * rowsize];
+	}
+	for (int col = -dist; col <= dist; col++){
+		total += dev_arr1[idx + col];
+	}
+	dev_arr2[idx] = total / ((dist + dist + 1) * 2 - 1);
+}
+
 __device__ void _5pt_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
 	dev_arr2[idx] = (dev_arr1[idx-1] + dev_arr1[idx-rowsize] + dev_arr1[idx] + dev_arr1[idx+1] + dev_arr1[idx+rowsize]) / 5;	
 }
@@ -80,8 +106,8 @@ __device__ void _81pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rows
 }
 
 
-__global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, 
-			const int colsize, const int n1, const int threadsPerBlock, int padd){
+__global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, const int colsize, 
+		const int n1, const int threadsPerBlock, int padd){
 	int offset = rowsize * blockIdx.x + padd;
 	int idx = threadIdx.x + offset;
 	while (idx < n1 + offset){
@@ -92,7 +118,9 @@ __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize,
 //		_13pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
 //		_49pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
 //		_17pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
-		_81pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
+//		_81pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
+		_jacobi_square(dev_arr1, dev_arr2, idx, rowsize);
+//		_jacobi_cross(dev_arr1, dev_arr2, idx, rowsize);
 
 		idx += threadsPerBlock;
 	}	
@@ -109,7 +137,6 @@ void checkGPUError(cudaError err){
 void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL){
 	int rowsize = n1 + 2 * padd;
 	int colsize = n2 + 2 * padd;
-
 	int *dev_arr1, *dev_arr2, *tmp;
 	int tablesize = rowsize * colsize;
 	

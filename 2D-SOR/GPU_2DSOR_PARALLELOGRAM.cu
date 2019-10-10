@@ -19,6 +19,33 @@
 const int MAX_THREADS_PER_BLOCK = 1024;
 using namespace std;
 __device__ int row = 0;
+__device__ int dist = 4;
+
+__device__ void _jacobi_square(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
+	int total = 0;
+	for (int row = -dist; row <= dist; row++){
+		for (int col = -dist; col <= dist; col++){
+			total += tile1[tilePos + row * segLengthX[0] + col];
+		}
+	}
+	tile2[newtilePos] = total / (dist + dist + 1) / (dist + dist + 1);
+}
+
+__device__ void _jacobi_cross(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
+	int total = 0;
+	for (int row = -dist; row < 0; row++){
+		total += tile1[tilePos + row * segLengthX[0]];
+	}
+	for (int row = 1; row <= dist; row++){
+		total += tile1[tilePos + row * segLengthX[0]];
+	}
+	
+	for (int col = -dist; col <= dist; col++){
+		total += tile1[tilePos + col];
+	}
+	
+	tile2[newtilePos] = total / ((dist + dist + 1) * 2 - 1);
+}
 
 __device__ void _5ptSOR(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
 	tile2[newtilePos] = (tile1[tilePos + stride[0]] + tile1[tilePos + segLengthX[0]] + tile1[tilePos] + tile1[tilePos - stride[0]] + tile1[tilePos - segLengthX[0]]) / 5;
@@ -100,7 +127,9 @@ __device__ void stencil(volatile int* tile1, volatile int* tile2, int newtilePos
 //	_13pt_CROSS_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_49pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_17pt_CROSS_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-	_81pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_81pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+	_jacobi_square(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_jacobi_cross(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 }
 
 

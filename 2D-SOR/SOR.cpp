@@ -10,6 +10,8 @@
 using namespace std;
 //#define DEBUG
 
+int dist = 4;
+
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
 	inputfile.open( str1.c_str() );
@@ -111,6 +113,29 @@ int _81pt_SQUARE_SOR(int** arr1, int** arr2, int n1, int n2, int idx, int idy, i
 	return total / 81;
 }
 
+int _jacobi_square(int** arr1, int n1, int c, int r, int padd, int dist){
+	int total = 0;
+	for (int row = r - dist; row <= r + dist; row++){
+		for (int col = c - dist; col <= c + dist; col++){
+			total += (*arr1)[row * (n1 + 2 * padd) + col];
+		}
+	}
+	return total / (dist + dist + 1) / (dist + dist + 1);
+}
+
+int _jacobi_cross(int** arr1, int n1, int c, int r, int padd, int dist){
+	int total = 0;
+	for (int row = r - dist; row <= r + dist; row++){
+		total += (*arr1)[row * (n1 + 2 * padd) + c];
+	}
+	for (int col = c - dist; col < c; col++){
+		total += (*arr1)[r * (n1 + 2 * padd) + col];
+	}
+	for (int col = c + 1; col <= c + dist; col++){
+		total += (*arr1)[r * (n1 + 2 * padd) + col];
+	}
+	return total / ((dist + dist + 1) * 2 - 1);
+}
 
 
 int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
@@ -127,7 +152,9 @@ int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _13pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _49pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _17pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
-				(*arr2)[idy * (n1 + 2 * padd) + idx] = _81pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _81pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
+				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_square(arr1, n2, idx, idy, padd, dist);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_cross(arr1, n2, idx, idy, padd, dist);
 			}	
 		}
 		tmp = *arr2;
@@ -178,6 +205,7 @@ int main(int argc, char **argv){
 	int n1, n2, padd;
 	int *arr1, *arr2;
 	
+
 	readInputData(str1, n1, n2, padd,  &arr1, &arr2);
 
 //	displayInput(arr1, n1, n2, padd);

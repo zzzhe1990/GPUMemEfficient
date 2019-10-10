@@ -34,28 +34,7 @@ void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **a
 		inputfile.ignore(2^15+2*padd, '\n');
 	}
 }
-/*
-void readInputData(string str1, int &n1, int &n2, int **arr1, int **arr2){
-	ifstream inputfile;
-	inputfile.open( str1.c_str() );
-	
-	if (!inputfile){
-		cout << "ERROR: Input file cannot be opened!" << endl;
-		exit(EXIT_FAILURE);
-	}
 
-	inputfile >> n1 >> n2;
-	
-	*arr1 = new int[(n1+2) * (n2+2)];
-	*arr2 = new int[(n1+2) * (n2+2)];
-
-	for (int j=0; j<n2+2; j++){
-		for (int i=0; i<n1+2; i++)
-			inputfile >> (*arr1)[j * (n1 +2)+ i];
-		inputfile.ignore(2^15+2, '\n');
-	}
-}
-*/
 void displayInput(int *arr, int n1, int n2, int padd){
 	cout << "SOR table: " << endl;
 	for (int j=0; j<n2+2*padd; j++){
