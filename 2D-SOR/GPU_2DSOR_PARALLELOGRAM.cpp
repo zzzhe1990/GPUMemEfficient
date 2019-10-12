@@ -118,7 +118,7 @@ int main(int argc, char **argv){
 
 	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec)/1000000.0;
 
-	cout << "total execution time: " << s << " second." << endl;
+//	cout << "total execution time: " << s << " second." << endl;
 #ifdef DEBUG
 	string outfile = "./Output/output_LCS_";
 	outfile.append(convert1.str());

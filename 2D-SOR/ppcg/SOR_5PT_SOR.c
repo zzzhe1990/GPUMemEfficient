@@ -7,8 +7,8 @@
 #include<string.h>
 #include<errno.h>
 
-const int n1 = 4096, n2 = 4096;
-const int nn1 = 4100, nn2 = 4100;
+const int n1 = 8192, n2 = 8192;
+const int nn1 = 8196, nn2 = 8196;
 
 void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, int trial){
 	struct timeval tbegin, tend;

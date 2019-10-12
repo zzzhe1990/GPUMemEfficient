@@ -7,48 +7,70 @@
 #include<string.h>
 #include<errno.h>
 
-const int n1 = 4096, n2 = 4096;
-const int nn1 = 4100, nn2 = 4100;
-
-void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, int trial){
-	struct timeval tbegin, tend;
-	gettimeofday(&tbegin, NULL);
-#pragma acc data copy(arr1, arr2)	
-	for (int t=0; t < trial; t += 2){
-#pragma acc kernels loop
-		for (int r = padd; r < len1; r++){
-#pragma acc loop gang(16), vector(32)
-			for (int c = padd; c < len2; c++){
-				arr2[r][c] = (arr1[r-1][c] + arr1[r][c-1] + arr1[r][c] + arr1[r][c+1] + arr1[r+1][c]) / 5;
-			}	
-		}
-		for (int r = padd; r < len1; r++){
-			for (int c = padd; c < len2; c++){
-				arr1[r][c] = (arr2[r-1][c] + arr2[r][c-1] + arr2[r][c] + arr2[r][c+1] + arr2[r+1][c]) / 5;
-			}	
-		}
-	}
-	
-	gettimeofday(&tend, NULL);
-	double tt = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec) / 1000000.0;
-	printf("execution time: %lf s\n", tt);
-}
-
 int main(){
-	int trial = 64;
-     	int padd = 2;
-	static int arr1[4100][4100];
-	static int arr2[4100][4100];
+	int n = 8192;
+	int trial = 512;
+	int s = 8;	//stride
+     	int padd = s * 2;
+	int nn = n + padd + padd;
 
-	for (int row = 0; row < nn1; row++){
-		for (int col = 0; col < nn2; col++){
+//	int* arr1 = (int*)malloc(nn * nn * sizeof(int));
+//	int* arr2 = (int*)malloc(nn * nn * sizeof(int));
+
+	static int arr1[8224][8224];
+	static int arr2[8224][8224];
+
+	for (int row = 0; row < nn; row++){
+		for (int col = 0; col < nn; col++){
+//			arr1[row * nn + col] = rand() % 100;
 			arr1[row][col] = rand() % 100;
-			arr2[row][col] = arr1[row][col];
 		}
 	}	
+	
+//#pragma acc data copy(arr1[0:nn*nn]) create(arr2[0:nn*nn])	
+#pragma acc data copy(arr1[0:nn][0:nn]) create(arr2[0:nn][0:nn])	
+	{
+		struct timeval tbegin, tend;
+		gettimeofday(&tbegin, NULL);
 
+		for (int t=0; t < trial; t++){
+	        	#pragma acc kernels
+	     		{
+				#pragma acc loop tile(32,4) device_type(nvidia)
+     	     			for (int r = padd; r < nn - padd; r++){
+//					#pragma acc loop gang(16), vector(32)
+					for (int c = padd; c < nn - padd; c++){
+						int total = 0;
+/*						for (int x = -s; x <= s; x++)
+							total += arr1[r][c + x];
+						for (int y = -s; y < 0; y++)
+							total += arr1[r + y][c];
+						for (int y = 1; y < s; y++)
+							total += arr1[r + y][c];
+						arr2[r][c] = total / ((s + s + 1) * 2 - 1);
+*/
+						for (int y = -s; y <= s; y++){
+							for (int x = -s; x <= s; x++)
+								total += arr1[r + y][c + x];
+						}
+						arr2[r][c] = total / (s + s + 1) / (s + s + 1);
 
-	SOR(n1 + padd, n2 + padd, arr1, arr2, padd, trial);
+					}
+				}
+				#pragma acc loop tile(32,4) device_type(nvidia)
+		                for (int r = padd; r < nn - padd; r++){
+					for (int c = padd; c < nn - padd; c++)
+//						arr1[r * nn + c] = arr2[r * nn + c];
+						arr1[r][c] = arr2[r][c];
+				}
+			}
+		}
+		#pragma acc wait
+		gettimeofday(&tend, NULL);
+		double tt = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec) / 1000000.0;
+		printf("execution time: %lf s\n", tt);
+
+	}
 
 	return 0;
 }

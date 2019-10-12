@@ -4,14 +4,12 @@
 #include<string>
 #include<sys/time.h>
 
-//#define PRINT_FINAL_RESULT
+#define PRINT_FINAL_RESULT
 typedef unsigned long long int UINT;
 
 using namespace std;
 
-__device__ int dist = 4;
-
-__device__ void _jacobi_square(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+__device__ void _jacobi_square(int* dev_arr1, int* dev_arr2, int idx, int rowsize, int dist){
 	int total = 0;
 	for (int row = -dist; row <= dist; row++){
 		for (int col = -dist; col <= dist; col++){
@@ -21,7 +19,7 @@ __device__ void _jacobi_square(int* dev_arr1, int* dev_arr2, int idx, int rowsiz
 	dev_arr2[idx] = total / (dist + dist + 1) / (dist + dist + 1);
 }
 
-__device__ void _jacobi_cross(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
+__device__ void _jacobi_cross(int* dev_arr1, int* dev_arr2, int idx, int rowsize, int dist){
 	int total = 0;
 	for (int row = -dist; row < 0; row++){
 		total += dev_arr1[idx + row * rowsize];
@@ -107,7 +105,7 @@ __device__ void _81pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rows
 
 
 __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, const int colsize, 
-		const int n1, const int threadsPerBlock, int padd){
+		const int n1, const int threadsPerBlock, int padd, int stride){
 	int offset = rowsize * blockIdx.x + padd;
 	int idx = threadIdx.x + offset;
 	while (idx < n1 + offset){
@@ -119,8 +117,8 @@ __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, const int c
 //		_49pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
 //		_17pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
 //		_81pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
-		_jacobi_square(dev_arr1, dev_arr2, idx, rowsize);
-//		_jacobi_cross(dev_arr1, dev_arr2, idx, rowsize);
+		_jacobi_square(dev_arr1, dev_arr2, idx, rowsize, stride);
+//		_jacobi_cross(dev_arr1, dev_arr2, idx, rowsize, stride);
 
 		idx += threadsPerBlock;
 	}	
@@ -134,7 +132,7 @@ void checkGPUError(cudaError err){
 	}
 }
 
-void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL){
+void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL, int stride){
 	int rowsize = n1 + 2 * padd;
 	int colsize = n2 + 2 * padd;
 	int *dev_arr1, *dev_arr2, *tmp;
@@ -162,7 +160,7 @@ void SOR(int n1, int n2, int padd, int *arr1, int *arr2, int MAXTRIAL){
 
 	//suppose n1 is the row size and the longer array
 	for (int t = 0; t < MAXTRIAL; t++){
-		GPU<<<blocksPerGrid, threadsPerBlock>>>(&dev_arr1[padd * rowsize], &dev_arr2[padd * rowsize], rowsize, colsize, n1, threadsPerBlock, padd);		
+		GPU<<<blocksPerGrid, threadsPerBlock>>>(&dev_arr1[padd * rowsize], &dev_arr2[padd * rowsize], rowsize, colsize, n1, threadsPerBlock, padd, stride);		
 		cudaDeviceSynchronize();
 		tmp = dev_arr1;
 		dev_arr1 = dev_arr2;

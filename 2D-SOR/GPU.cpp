@@ -92,13 +92,13 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tbegin, NULL);
 	
-	SOR(n1, n2, padd, arr1, arr2, trial);
+	SOR(n1, n2, padd, arr1, arr2, trial, stride);
 
 	gettimeofday(&tend, NULL);
 
 	double s = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec)/1000000.0;
 
-	cout << "execution time: " << s << " second." << endl;
+//	cout << "execution time: " << s << " second." << endl;
 #ifdef DEBUG
 	string outfile = "./Output/output_LCS_";
 	outfile.append(convert1.str());

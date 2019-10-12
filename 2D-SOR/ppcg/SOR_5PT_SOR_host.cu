@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
-#include "SOR_kernel.hu"
+#include "SOR_5PT_SOR_kernel.hu"
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
@@ -10,8 +10,8 @@
 #include<string.h>
 #include<errno.h>
 
-const int n1 = 8192, n2 = 8192;
-const int nn1 = 8196, nn2 = 8196;
+const int n1 = 2048, n2 = 2048;
+const int nn1 = 2052, nn2 = 2052;
 
 void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, int trial){
 	struct timeval tbegin, tend;
@@ -36,16 +36,13 @@ void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, i
 	  int *dev_arr2;
 	  
 	  #define ppcg_min(x,y)    ({ __typeof__(x) _x = (x); __typeof__(y) _y = (y); _x < _y ? _x : _y; })
-	  cudaCheckReturn(cudaMalloc((void **) &dev_arr1, (ppcg_min(len1 + 1, -padd + len1 + nn1)) * (nn1) * sizeof(int)));
-	  cudaCheckReturn(cudaMalloc((void **) &dev_arr2, (ppcg_min(len1 + 1, -padd + len1 + nn2)) * (nn2) * sizeof(int)));
+	  cudaCheckReturn(cudaMalloc((void **) &dev_arr1, (ppcg_min(len1 + 1, -padd + len1 + 4100)) * (4100) * sizeof(int)));
+	  cudaCheckReturn(cudaMalloc((void **) &dev_arr2, (ppcg_min(len1 + 1, -padd + len1 + 4100)) * (4100) * sizeof(int)));
 	  
-	  if (padd <= nn1) {
-	    cudaCheckReturn(cudaMemcpy(dev_arr1, arr1, (ppcg_min(len1 + 1, -padd + len1 + nn1)) * (nn1) * sizeof(int), cudaMemcpyHostToDevice));
-	    cudaCheckReturn(cudaMemcpy(dev_arr2, arr2, (ppcg_min(len1 + 1, -padd + len1 + nn2)) * (nn2) * sizeof(int), cudaMemcpyHostToDevice));
+	  if (padd <= 4100) {
+	    cudaCheckReturn(cudaMemcpy(dev_arr1, arr1, (ppcg_min(len1 + 1, -padd + len1 + 4100)) * (4100) * sizeof(int), cudaMemcpyHostToDevice));
+	    cudaCheckReturn(cudaMemcpy(dev_arr2, arr2, (ppcg_min(len1 + 1, -padd + len1 + 4100)) * (4100) * sizeof(int), cudaMemcpyHostToDevice));
 	  }
-
-	  struct timeval t1, t2;
-	  gettimeofday(&t1, NULL);
 	  for (int c0 = 0; c0 < trial; c0 += 2) {
 	    {
 	      dim3 k0_dimBlock(16, 32);
@@ -53,7 +50,7 @@ void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, i
 	      kernel0 <<<k0_dimGrid, k0_dimBlock>>> (dev_arr1, dev_arr2, trial, padd, len1, len2, c0);
 	      cudaCheckKernel();
 	    }
-	    cudaDeviceSynchronize();  
+	    
 	    {
 	      dim3 k1_dimBlock(16, 32);
 	      dim3 k1_dimGrid(len2 + 30 >= ((len2 + 31) % 8192) + padd ? 256 : (len2 + 31) / 32 - 256 * ((len2 + 31) / 8192), len1 + 30 >= ((len1 + 31) % 8192) + padd ? 256 : (len1 + 31) / 32 - 256 * ((len1 + 31) / 8192));
@@ -62,11 +59,6 @@ void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, i
 	    }
 	    
 	  }
-	  cudaDeviceSynchronize();
-	  gettimeofday(&t2, NULL);
-	  double t3 = (double)(t2.tv_sec - t1.tv_sec) + (double)(t2.tv_usec - t1.tv_usec) / 1000000.0;
-	  printf("execution time: %lf s\n", t3);
-
 	  if (padd <= 4100) {
 	    cudaCheckReturn(cudaMemcpy(arr1, dev_arr1, (ppcg_min(len1 + 1, -padd + len1 + 4100)) * (4100) * sizeof(int), cudaMemcpyDeviceToHost));
 	    cudaCheckReturn(cudaMemcpy(arr2, dev_arr2, (ppcg_min(len1 + 1, -padd + len1 + 4100)) * (4100) * sizeof(int), cudaMemcpyDeviceToHost));
@@ -77,11 +69,11 @@ void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, i
 	
 	gettimeofday(&tend, NULL);
 	double tt = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec) / 1000000.0;
-	printf("total execution time: %lf s\n", tt);
+	printf("execution time: %lf s\n", tt);
 }
 
 int main(){
-	int trial = 128;
+	int trial = 64;
      	int padd = 2;
 	static int arr1[nn1][nn2];
 	static int arr2[nn1][nn2];

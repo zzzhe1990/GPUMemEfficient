@@ -19,32 +19,31 @@
 const int MAX_THREADS_PER_BLOCK = 1024;
 using namespace std;
 __device__ int row = 0;
-__device__ int dist = 4;
 
 __device__ void _jacobi_square(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
 	int total = 0;
-	for (int row = -dist; row <= dist; row++){
-		for (int col = -dist; col <= dist; col++){
+	for (int row = -stride[0]; row <= stride[0]; row++){
+		for (int col = -stride[0]; col <= stride[0]; col++){
 			total += tile1[tilePos + row * segLengthX[0] + col];
 		}
 	}
-	tile2[newtilePos] = total / (dist + dist + 1) / (dist + dist + 1);
+	tile2[newtilePos] = total / (stride[0] + stride[0] + 1) / (stride[0] + stride[0] + 1);
 }
 
 __device__ void _jacobi_cross(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
 	int total = 0;
-	for (int row = -dist; row < 0; row++){
+	for (int row = -stride[0]; row < 0; row++){
 		total += tile1[tilePos + row * segLengthX[0]];
 	}
-	for (int row = 1; row <= dist; row++){
+	for (int row = 1; row <= stride[0]; row++){
 		total += tile1[tilePos + row * segLengthX[0]];
 	}
 	
-	for (int col = -dist; col <= dist; col++){
+	for (int col = -stride[0]; col <= stride[0]; col++){
 		total += tile1[tilePos + col];
 	}
 	
-	tile2[newtilePos] = total / ((dist + dist + 1) * 2 - 1);
+	tile2[newtilePos] = total / ((stride[0] + stride[0] + 1) * 2 - 1);
 }
 
 __device__ void _5ptSOR(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
@@ -128,8 +127,8 @@ __device__ void stencil(volatile int* tile1, volatile int* tile2, int newtilePos
 //	_49pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_17pt_CROSS_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_81pt_SQUARE_SOR(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-	_jacobi_square(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-//	_jacobi_cross(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_jacobi_square(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+	_jacobi_cross(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 }
 
 
@@ -478,15 +477,22 @@ __global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int* dev_var, int 
 	__syncthreads();
 #endif
 	//need two arrays: 1. tile raw data; 2. intra-stream dependence
-	//tile size stored in the shared array could be as large as 64 * 64
-	//shared "tile" size is up to "71 * 71", which includes the target "tile", which is "64 * 64", "intra_dep" data entries and "inter_dep" data entries.
 	//intra_dep size is restricted by the "dep_stride", "tileY", and "tileT"
+	//tileX: 64; tileY: 64, stride: 1-3
 //	volatile __shared__ int tile1[4900];
 //	volatile __shared__ int tile2[4900];
 //	__shared__ int intra_dep[2470];
-	volatile __shared__ int tile1[2116];
-	volatile __shared__ int tile2[2116];
-	__shared__ int intra_dep[8040];
+	
+	//tileX: 32; tileY: 32, stride: 1-10
+//	volatile __shared__ int tile1[2704];
+//	volatile __shared__ int tile2[2704];
+//	__shared__ int intra_dep[6800];
+
+	//tileX: 32; tileY: 64, stride: 1-8	
+	volatile __shared__ int tile1[3840];
+	volatile __shared__ int tile2[3840];
+	__shared__ int intra_dep[4352];
+	
 	__shared__ int YoverX[1];
 	__shared__ int dep_stride[1];
 	__shared__ int segLengthX[1];
@@ -1628,13 +1634,14 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 //stride is the longest distance between the element and its dependence along one dimension times
 //For example: F(x) = T(x-1) + T(x) + T(x+1), stride = 1
 //when we change stride, we also need to update parameter "paddsize" in data generator file.
+	//padd = 2 * stride
 	int dep_stride = padd;
 	int tileX = 32;
-	int tileY = 32;
+	int tileY = 64;
 	//the shared memory available for intra_dep array.
 	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
 	//tileT is restriced by "tileY" and "intra_dep" shared array size.
-	int tileT = min(8, min(tileX, tileY));
+	int tileT = min(16, min(tileX, tileY));
 	tileT = tileT > MAXTRIAL ? MAXTRIAL : tileT;
 	//compare required shared memory to available shared memory for intra_dep array.
 	while (tileT * dep_stride * tileY > intra_size){
@@ -1650,6 +1657,7 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 		cout << "time tile size is smaller than 2, please reduce tileX and tileY size to reserve larger shared memory capacity for intra_dep array." << endl;
 		exit(-1);
 	}
+	cout << "tileT: " << tileT << endl;
 
 	int xseg = n1 / tileX + 1;
 	int yseg = n2 / tileY + 1;
@@ -1660,10 +1668,6 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 #ifdef PRINT_FINAL_RESULT
 	cout << "Final Matrix after a total of " << MAXTRIAL << " time stamps, which are completed as a batch for every " << tileT << endl;
 #endif
-//PTilesPerTimestamp is the number of parallelgoram tiles can be scheduled at each time stamp
-//	int PTilesPerTimestamp = (n1/tileX) * (n2/tileY); 
-//ZTilesPerTimestamp is the number of trapezoid tiles (overlaped tiles) needed to calculate the uncovered area at each time stamp.
-//	int ZTilesPerTimestamp = (n1/tileX) + (n2/tileY) - 1; 
 	int width = 2 * padd + n1; 
 	int height = 2 * padd + n2;
 

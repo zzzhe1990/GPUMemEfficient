@@ -10,8 +10,6 @@
 using namespace std;
 //#define DEBUG
 
-int dist = 4;
-
 void readInputData(string str1, int &n1, int &n2, int &padd, int **arr1, int **arr2){
 	ifstream inputfile;
 	inputfile.open( str1.c_str() );
@@ -138,7 +136,7 @@ int _jacobi_cross(int** arr1, int n1, int c, int r, int padd, int dist){
 }
 
 
-int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
+int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial, int stride){
 	int *tmp;
 	for (int t=0; t < trial; t++){
 		for (int y = padd; y < n2 + padd; y++){
@@ -153,8 +151,8 @@ int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial){
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _49pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _17pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _81pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
-				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_square(arr1, n2, idx, idy, padd, dist);
-//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_cross(arr1, n2, idx, idy, padd, dist);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_square(arr1, n2, idx, idy, padd, dist);
+				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_cross(arr1, n2, idx, idy, padd, stride);
 			}	
 		}
 		tmp = *arr2;
@@ -216,7 +214,7 @@ int main(int argc, char **argv){
 
 	gettimeofday(&tbegin, NULL);
 	
-	int* res = SOR(n1, n2, padd, &arr1, &arr2, trial);
+	int* res = SOR(n1, n2, padd, &arr1, &arr2, trial, stride);
 
 	gettimeofday(&tend, NULL);
 	
