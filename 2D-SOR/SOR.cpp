@@ -151,8 +151,8 @@ int* SOR(int n1, int n2, int padd, int **arr1, int **arr2, int trial, int stride
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _49pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _17pt_CROSS_SOR(arr1, arr2, n1, n2, idx, idy, padd);
 //				(*arr2)[idy * (n1 + 2 * padd) + idx] = _81pt_SQUARE_SOR(arr1, arr2, n1, n2, idx, idy, padd);
-//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_square(arr1, n2, idx, idy, padd, dist);
-				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_cross(arr1, n2, idx, idy, padd, stride);
+				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_square(arr1, n2, idx, idy, padd, stride);
+//				(*arr2)[idy * (n1 + 2 * padd) + idx] = _jacobi_cross(arr1, n2, idx, idy, padd, stride);
 			}	
 		}
 		tmp = *arr2;

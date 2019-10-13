@@ -266,45 +266,6 @@ Complete:
 Openacc is now working.
 
 Problems:
-1. GPU_TILE code does not return correct result for 64*64 tile when tileT == 2;
-2. GPU_TILE code does not return correct result for 64*32 tile.
-
-
-
-
-######################################################
-Oct 12
-#####################################################
-Complete:
-Openacc is now working.
-
-Problems:
-1. GPU_TILE code does not return correct result for 64*64 tile when tileT == 2;
-2. GPU_TILE code does not return correct result for 64*32 tile.
-
-
-
-
-######################################################
-Oct 12
-#####################################################
-Complete:
-Openacc is now working.
-
-Problems:
-1. GPU_TILE code does not return correct result for 64*64 tile when tileT == 2;
-2. GPU_TILE code does not return correct result for 64*32 tile.
-
-
-
-
-######################################################
-Oct 12
-#####################################################
-Complete:
-Openacc is now working.
-
-Problems:
 1. GPU_TILE code does not return correct result for 64*64 tile when stride >= 4 and tileT == 2;
 2. GPU_TILE code does not return correct result for 64*32 tile.
 3. GPU_TILE code breaks for 32 * 64 tile.
@@ -312,10 +273,11 @@ Problems:
 Completion:
 1. GPU_TILE code has restrictions on tileT for different shared memory array size.
 2. Tile size like 64 * 32 is now working.
-
+3. Re-organize the threads resources for RTX 2080 Ti
 
 To do:
 1. arr2 in shared memory does not need to include ghost zone elements.
+2. Tune #streams, threads per block, shared memory per block.
 
 
 

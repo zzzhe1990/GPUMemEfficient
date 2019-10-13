@@ -10,15 +10,15 @@
 int main(){
 	int n = 8192;
 	int trial = 512;
-	int s = 8;	//stride
+	int s = 7;	//stride
      	int padd = s * 2;
 	int nn = n + padd + padd;
 
 //	int* arr1 = (int*)malloc(nn * nn * sizeof(int));
 //	int* arr2 = (int*)malloc(nn * nn * sizeof(int));
 
-	static int arr1[8224][8224];
-	static int arr2[8224][8224];
+	static int arr1[8220][8220];
+	static int arr2[8220][8220];
 
 	for (int row = 0; row < nn; row++){
 		for (int col = 0; col < nn; col++){

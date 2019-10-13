@@ -10,14 +10,13 @@
 //#define PRINT_MID_BATCH
 //#define PRINT_LAST_BATCH
 #define PRINT_FINAL_RESULT
+#define RTX_2080
 #define FIRST_BATCH
 #define LAST_BATCH
 #define MID_BATCH
 #define TIME_LOCK
 #define SYNC
-#define RTX_2080
 
-const int MAX_THREADS_PER_BLOCK = 1024;
 using namespace std;
 __device__ int row = 0;
 
@@ -47,35 +46,39 @@ __device__ void _jacobi_cross(volatile int* tile1, volatile int* tile2, int newt
 	tile2[newtilePos] = total / ((stride[0] + stride[0] + 1) * 2 - 1);
 }
 
+
 __device__ void stencil(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
 	_jacobi_square(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 //	_jacobi_cross(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 }
 
 
-/*
-__device__ void swapTile(volatile int* tile1, volatile int* tile2, int segLengthX, int segLengthY, int dep_stride, int warpbatch){
+
+__device__ void swapTile(volatile int* tile1, volatile int* tile2, int* tileX, int* tileY, int* segLengthX, int* dep_stride, int* warpbatch){
 	int idx = threadIdx.x % 32;
 	int warpidx = threadIdx.x / 32;
-	if (warpidx < segLengthY){
-		int shrpos = warpidx * segLengthX;
-		for(; warpidx < segLengthY; warpidx += warpbatch){
-			for(int i = idx; i < segLengthX; i += 32){
-				tile1[shrpos + i] = tile2[shrpos + i];
-				tile2[shrpos + i] = 0;
+	if (warpidx < tileY[0]){
+		int pos1 = (dep_stride[0] + warpidx) * segLengthX[0] + dep_stride[0];
+		int pos2 = warpidx * tileX[0];
+		for(; warpidx < tileY[0]; warpidx += warpbatch[0]){
+			for(int i = idx; i < tileX[0]; i += 32){
+				tile1[pos1 + i] = tile2[pos2 + i];
+				tile2[pos2 + i] = 0;
 			}
-			shrpos += (warpbatch * segLengthX);
+			pos1 += (warpbatch[0] * segLengthX[0]);
+			pos2 += (warpbatch[0] * tileX[0]);
 		}
 	}
-*/
-__device__ void swapTile(volatile int* tile1, volatile int* tile2, int* segLengthX, int* segLengthY){
+}
+/*
+__device__ void swapTile(volatile int* tile1, volatile int* tile2, int* segLengthX, int* segLengthY, int threadsPerBlock){
 	int len = segLengthX[0] * segLengthY[0];
-	for (int idx = threadIdx.x; idx < len; idx += MAX_THREADS_PER_BLOCK){
+	for (int idx = threadIdx.x; idx < len; idx += threadsPerBlock){
 		tile1[idx] = tile2[idx];
 		tile2[idx] = 0;
 	}
 }
-		
+*/		
 __device__ void printGlobal(volatile int* dev_arr, int* width, int* height, int curSMStream){
 	if (threadIdx.x == 0 ){
 		for (int r = 0; r < height[0]; r++){
@@ -307,6 +310,7 @@ __device__ void read_batch_lock_for_time(int* dev_time_lock, int curBatch){
 	}
 	__syncthreads();
 }
+
 __device__ void write_batch_lock_for_time(int* dev_time_lock, int curBatch){
 	if (threadIdx.x == 0){
 		dev_time_lock[curBatch] = 1;
@@ -385,7 +389,7 @@ __device__ void clear_time_lock_for_stream(volatile int* dev_time_lock, int curS
 }
 
 //__global__ void GPU_Tile(volatile int* dev_arr, int curBatch, int tx, int tileY, int padd, int stride, int height, int width, int xseg, int yseg, int n1, int n2, int warpbatch, int curSMStream, int nextSMStream, volatile int* inter_stream_dep, int inter_stream_dep_size, int tileT, int timepiece, int batchStartAddress, volatile int* dev_row_lock, volatile int* dev_time_lock){ 
-__global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var, const int curSMStream, const int nextSMStream, volatile int* inter_stream_dep, const int inter_stream_dep_size, const int tileT, const int timepiece, const int batchStartAddress, volatile int* dev_row_lock, volatile int* dev_time_lock){ 
+__global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var, const int curSMStream, const int nextSMStream, volatile int* inter_stream_dep, const int inter_stream_dep_size, const int tileT, const int timepiece, int batchStartAddress, volatile int* dev_row_lock, volatile int* dev_time_lock, const int threadsPerBlock){ 
 //We assume row size n1 is the multiple of 32 and can be completely divided by tileX.
 //For each row, the first tile and the last tile are computed separately from the other tiles.
 //size of the shared memory is determined by the GPU architecture.
@@ -398,6 +402,27 @@ __global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var
 #endif
 	//need two arrays: 1. tile raw data; 2. intra-stream dependence
 	//intra_dep size is restricted by the "dep_stride", "tileY", and "tileT"
+
+#ifndef RTX_2080
+//*************** GTX 1080 Ti *********************
+	//tileX: 64; tileY: 64, stride: 1-3
+//	volatile __shared__ int tile1[4900];
+//	volatile __shared__ int tile2[4900];
+//	__shared__ int intra_dep[2470];
+	
+	//tileX: 32; tileY: 32, stride: 1-10
+	volatile __shared__ int tile1[2704];
+	volatile __shared__ int tile2[2704];
+	__shared__ int intra_dep[6800];
+
+	//tileX: 32; tileY: 64, stride: 1-8	
+//	volatile __shared__ int tile1[3840];
+//	volatile __shared__ int tile2[3840];
+//	__shared__ int intra_dep[4352];
+	
+#else
+//*************** RTX 2080 Ti *********************
+	//64KB per block
 	//tileX: 64; tileY: 64, stride: 1-3
 //	volatile __shared__ int tile1[4900];
 //	volatile __shared__ int tile2[4900];
@@ -410,8 +435,20 @@ __global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var
 
 	//tileX: 32; tileY: 64, stride: 1-8	
 	volatile __shared__ int tile1[3840];
-	volatile __shared__ int tile2[3840];
-	__shared__ int intra_dep[4352];
+	volatile __shared__ int tile2[2048];
+	__shared__ int intra_dep[6380];
+
+	//32KB per block to fully utilize 64KB
+	//tileX: 32; tileY: 32, stride: 1-8
+///	volatile __shared__ int tile1[2704];
+//	volatile __shared__ int tile2[2704];
+//	__shared__ int intra_dep[2760];
+
+	//tileX: 32; tileY: 64, stride: 1-4	
+//	volatile __shared__ int tile1[2880];
+//	volatile __shared__ int tile2[2880];
+//	__shared__ int intra_dep[3310];
+#endif	
 	
 	__shared__ int YoverX[1];
 	__shared__ int dep_stride[1];
@@ -436,6 +473,8 @@ __global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var
 //	int segLengthY = tileY + dep_stride[0];
 	int tileIdx = 0;
 	int xidx, yidx;
+	const int xidx2 = threadIdx.x % tileX[0];
+        const int yidx2 = threadIdx.x / tileX[0];
 	int tilePos, newtilePos, glbPos;
 	int tileAddress;
 //	int YoverX = tileY/tileX;	
@@ -498,8 +537,7 @@ __syncthreads();
 			        //tilePos is the index of each element, to be calculated in the next timestamp. shifted left and up by "dep_stride / 2".
 				tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 				//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array.
-				//NEED MODIFICATION BECAUSE newtilePos is not correct here because of the irregular tile size.
-				newtilePos = tilePos;
+				newtilePos = yidx2 * tileX[0] + xidx2;
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 				if (xidx > 0 && xidx < tileX[0] - tt * stride[0] && yidx > 0 && yidx < tileY[0] - tt * stride[0]){
@@ -562,8 +600,8 @@ __threadfence();
 __syncthreads();
 #endif
 			//swap tile2 with tile1;
-//			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-			swapTile(tile1, tile2, segLengthX, segLengthY);
+			swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+//			swapTile(tile1, tile2, segLengthX, segLengthY, threadsPerBlock);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_FIRST_BATCH
@@ -640,7 +678,7 @@ __syncthreads();
 				        //tilePos is the index of each element, to be calculated in the next timestamp. shifted left and up by "stride"
 					tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 					//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array
-					newtilePos = stride[0] * segLengthX[0] + dep_stride[0] + yidx * segLengthX[0] + xidx;
+					newtilePos = yidx2 * tileX[0] + xidx2;
 					//newtilePos = tilePos;
 					//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 					//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
@@ -688,8 +726,8 @@ __threadfence();
 __syncthreads();
 #endif
 				//swap tile2 with tile1;
-//				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+				swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+//				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 				__threadfence();
 				__syncthreads();
 #ifdef PRINT_FIRST_BATCH
@@ -772,7 +810,7 @@ if (threadIdx.x == 0){
 			        //tilePos is the index of each element, to be calculated in the next timestamp. shifted left and up by 1.
 				tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 				//newtilePos starts one row above the tile matrix because the next tile is shifted out-side-of the up boundary
-				newtilePos = stride[0] * segLengthX[0] + dep_stride[0] + yidx * segLengthX[0] + xidx;
+				newtilePos = yidx2 * tileX[0] + xidx2;
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation
 				if (xidx < (tt+1) * stride[0] && yidx > 0 && yidx < tileY[0] - tt * stride[0]){
@@ -809,8 +847,8 @@ __threadfence();
 __syncthreads();
 #endif
 			//swap tile2 with tile1;
-//			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+			swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+//			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_FIRST_BATCH
@@ -900,7 +938,7 @@ __syncthreads();
 				tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 				//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array.
 				//left column shift out-side-of the boundary, so retain all rows but discard the left-most column.
-				newtilePos = dep_stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;
+				newtilePos = yidx2 * tileX[0] + xidx2;
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 				if (xidx>0 && xidx < tileX[0] - tt * stride[0] && yidx < (tt + 1) * stride[0]){
@@ -926,8 +964,8 @@ __threadfence();
 __syncthreads();
 #endif
 			//swap tile2 with tile1;
-//			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+			swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+//			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_LAST_BATCH
@@ -1000,7 +1038,7 @@ __syncthreads();
 				        //tilePos is the index of each element, to be calculated in the next timestamp. shifted left and up by 1
 					tilePos = stride[0] * segLengthX[0] + stride[0] + xidx * segLengthX[0] + yidx;	
 					//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array
-					newtilePos = dep_stride[0] * segLengthX[0] + dep_stride[0] + xidx * segLengthX[0] + yidx;
+					newtilePos = yidx2 * tileX[0] + xidx2;
 					//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 					//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 					if (xidx < (tt + 1) * stride[0]){
@@ -1024,8 +1062,8 @@ __threadfence();
 __syncthreads();
 #endif
 				//swap tile2 with tile1;
-//				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+				swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+//				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 				__threadfence();
 				__syncthreads();
 #ifdef PRINT_LAST_BATCH
@@ -1099,7 +1137,7 @@ __syncthreads();
 			        //tilePos is the index of each element, to be calculated in the next timestamp. shifted left and up by 1.
 				tilePos = stride[0] * segLengthX[0] + stride[0] + xidx * segLengthX[0] + yidx;	
 				//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array.
-				newtilePos = dep_stride[0] * segLengthX[0] + dep_stride[0] + xidx * segLengthX[0] + yidx;
+				newtilePos = yidx2 * tileX[0] + xidx2;
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation
 				if (xidx < (tt + 1) * stride[0] && yidx < (tt + 1) * stride[0]){
@@ -1110,8 +1148,8 @@ __syncthreads();
 			__syncthreads();
 			
 			//swap tile2 with tile1;
-			//swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+			swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+			//swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_LAST_BATCH
@@ -1207,7 +1245,7 @@ __syncthreads();
 				tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 				//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array.
 				//left column shift out-side-of the boundary, so retain all rows but discard the left-most column.
-				newtilePos = dep_stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;
+				newtilePos = yidx2 * tileX[0] + xidx2;
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because the edge elements use only the out-of-range elements as dependent data, we need specific manipulation.
 				if (xidx > 0 && xidx < tileX[0] - tt * stride[0]){
@@ -1270,8 +1308,8 @@ __threadfence();
 __syncthreads();
 #endif
 			//swap tile2 with tile1;
-			//swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+			swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+			//swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_MID_BATCH
@@ -1348,7 +1386,7 @@ __syncthreads();
 				        //tilePos is the index of each element, to be calculated in the next timestamp. shifted left and up by 1
 					tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 					//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array
-					newtilePos = dep_stride[0] * segLengthX[0] + dep_stride[0] + yidx * segLengthX[0] + xidx;
+					newtilePos = yidx2 * tileX[0] + xidx2;
 					stencil(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 				}	
 				__threadfence();
@@ -1390,8 +1428,8 @@ __threadfence();
 __syncthreads();
 #endif
 				//swap tile2 with tile1;
-				//swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+				swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+//				swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 				__threadfence();
 				__syncthreads();
 #ifdef PRINT_MID_BATCH
@@ -1463,7 +1501,7 @@ __syncthreads();
 			        //tilePos is the index of each element, to be calculated in the next timestamp. shifted left and up by 1.
 				tilePos = stride[0] * segLengthX[0] + stride[0] + yidx * segLengthX[0] + xidx;	
 				//newtilePos is the index where the new calculated elements should be stored into the shared tile2 array.
-				newtilePos = dep_stride[0] * segLengthX[0] + dep_stride[0] + yidx * segLengthX[0] + xidx;
+				newtilePos = yidx2 * tileX[0] + xidx2;
 				//when curBatch == 0, eligible tile size is reduced along the timestamp because of the shifting.
 				//Because, the edge elements use only the out-of-range elements as dependent data, we need specific manipulation
 				if (xidx < (tt + 1) * stride[0]){
@@ -1497,8 +1535,8 @@ __threadfence();
 __syncthreads();
 #endif
 			//swap tile2 with tile1;
-			//swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, dep_stride, warpbatch);
-			swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY);
+			swapTile(&tile1[0], &tile2[0], tileX, tileY, segLengthX, dep_stride, warpbatch);
+			//swapTile(&tile1[0], &tile2[0], segLengthX, segLengthY, threadsPerBlock);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_MID_BATCH
@@ -1550,8 +1588,13 @@ void checkGPUError(cudaError err){
 }
 
 void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
-	cudaSetDevice(0);
-//	cudaFuncSetAttribute(cudaFuncAttributePreferredSharedMemoryCarvout);
+	cudaSetDevice(0);	
+	cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
+#ifndef RTX_2080
+	const int MAX_THREADS_PER_BLOCK = 1024;
+#else
+	const int MAX_THREADS_PER_BLOCK = 1024;
+#endif
 //stride is the longest distance between the element and its dependence along one dimension times
 //For example: F(x) = T(x-1) + T(x) + T(x+1), stride = 1
 //when we change stride, we also need to update parameter "paddsize" in data generator file.
@@ -1560,7 +1603,11 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	int tileX = 32;
 	int tileY = 64;
 	//the shared memory available for intra_dep array.
+#ifndef RTX_2080
 	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
+#else
+	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
+#endif
 	//tileT is restriced by "tileY" and "intra_dep" shared array size.
 	int tileT = min(16, min(tileX, tileY));
 	tileT = tileT > MAXTRIAL ? MAXTRIAL : tileT;
@@ -1677,7 +1724,7 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 			int nextSMStream = (curSMStream + 1) % numStream;
 //			cout << "curBatch: " << curBatch << ", stride: " << stride << ", tileX: " << tileX << ", tileY: " << tileY << ", t: " << t << ", xseg: " << xseg << ", yseg: " << yseg << ", logicStream: " << logicSMStream << ", curStream: " << curSMStream  << endl;	
 //			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, tileX, tileY, padd, stride, height, width, xseg, yseg, n1, n2, warpbatch, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock, dev_time_lock);	
-			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, dev_var, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock, dev_time_lock);	
+			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, dev_var, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock, dev_time_lock, threadPerBlock);	
 			checkGPUError( cudaGetLastError() );
 		}
 		//this global synchronization enforces the sequential computation along t dimension.
