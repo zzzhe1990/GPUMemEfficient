@@ -4,7 +4,7 @@
 #include<string>
 #include<sys/time.h>
 
-#define PRINT_FINAL_RESULT
+//#define PRINT_FINAL_RESULT
 typedef unsigned long long int UINT;
 
 using namespace std;

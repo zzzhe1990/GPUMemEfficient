@@ -9,15 +9,20 @@
 //#define PRINT_FIRST_BATCH
 //#define PRINT_MID_BATCH
 //#define PRINT_LAST_BATCH
-//#define PRINT_FINAL_RESULT
+#define PRINT_FINAL_RESULT
 #define FIRST_BATCH
 #define LAST_BATCH
 #define MID_BATCH
 #define TIME_LOCK
 #define SYNC
 //#define RTX_2080
+//#define _ONE_BLOCK
 
-const int MAX_THREADS_PER_BLOCK = 800;
+#ifdef _ONE_BLOCK
+const int MAX_THREADS_PER_BLOCK = 1024;
+#else
+const int MAX_THREADS_PER_BLOCK = 768;
+#endif
 const int warpsize = 32;
 
 using namespace std;
@@ -118,31 +123,29 @@ __device__ void moveMatrixToTile(volatile int* dev_arr, volatile int* tile, int*
 	}
 }
 
-//intra_dep array structure: tileT * dep_stride * tileY
+//intra_dep array structure: tileT * dep_stride * (tileY + dep_stride)
 __device__ void moveIntraDepToTile(int* intra_dep, volatile int* tile, int tt, int* tileY, int* segLengthX, int* dep_stride, int len){
-	//at each tt, (stride+1) dependent data are required at x axis.
-	//only the threads, which are within tileY are working here.
-	//threadPerBlock has to be no less than tileY * dep_stride
-	if (threadIdx.x < len * dep_stride[0]){
-		int pos = tt * dep_stride[0] * tileY[0] + threadIdx.x;
-		int tilepos = dep_stride[0] * segLengthX[0] + threadIdx.x/dep_stride[0] * segLengthX[0] + threadIdx.x % dep_stride[0];
+	//at each tt, (stride+stride) dependent data are required at x axis.
+	if (threadIdx.x < (len + dep_stride[0]) * dep_stride[0]){
+		int pos = tt * dep_stride[0] * (tileY[0] + dep_stride[0]) + threadIdx.x;
+		int tilepos = threadIdx.x/dep_stride[0] * segLengthX[0] + threadIdx.x % dep_stride[0];
 		tile[tilepos] = intra_dep[pos];
 	}
 }
 
 __device__ void moveIntraDepToTileEdge(volatile int* dev_arr, volatile int* tile, int* width, int* segLengthX, int* dep_stride, int tt, int* n1, int len, int* stride, int offset = 0){
 	//copy out-of-range data to tile
-	if (threadIdx.x < len * dep_stride[0]){
-		int glbpos = -dep_stride[0] + offset * (n1[0] + dep_stride[0]) + threadIdx.x/dep_stride[0] * width[0] + threadIdx.x % dep_stride[0];
+	if (threadIdx.x < (len + dep_stride[0]) * dep_stride[0]){
+		int glbpos = - (dep_stride[0] * width[0]) - dep_stride[0] + offset * (n1[0] + dep_stride[0]) + threadIdx.x/dep_stride[0] * width[0] + threadIdx.x % dep_stride[0];
 		int tilepos = threadIdx.x/dep_stride[0] * segLengthX[0] + threadIdx.x % dep_stride[0] + offset * (dep_stride[0] + tt * stride[0]);
 		tile[tilepos] = dev_arr[glbpos];
 	}
 }
 
 __device__ void moveTileToIntraDep(int* intra_dep, volatile int* tile, int tt, int* tileX, int* tileY, int* segLengthX, int* dep_stride, int* stride, int isRegular, int len){
-	if (threadIdx.x < len * dep_stride[0]){
-		int pos = tt * dep_stride[0] * tileY[0] + threadIdx.x;
-		int tilepos = dep_stride[0] * segLengthX[0] + tileX[0] - tt * isRegular * stride[0];
+	if (threadIdx.x < (len + dep_stride[0]) * dep_stride[0]){
+		int pos = tt * dep_stride[0] * (tileY[0] + dep_stride[0]) + threadIdx.x;
+		int tilepos = tileX[0] - tt * isRegular * stride[0];
 	       	tilepos	+= threadIdx.x/dep_stride[0] * segLengthX[0] + threadIdx.x % dep_stride[0];
 		intra_dep[pos] = tile[tilepos];
 	}
@@ -151,12 +154,9 @@ __device__ void moveTileToIntraDep(int* intra_dep, volatile int* tile, int tt, i
 __device__ void printIntraDep(int* intra_dep, int tt, int* tileY, int* segLengthX, int* dep_stride, int isRegular, int len){
 	if (threadIdx.x == 0){
 		printf("intra_dep: \n");
-		for (int i = 0; i < len * dep_stride[0]; i++){
-			int pos = tt * dep_stride[0] * tileY[0] + i;
+		for (int i = 0; i < (len + dep_stride[0]) * dep_stride[0]; i++){
+			int pos = tt * dep_stride[0] * (tileY[0] + dep_stride[0]) + i;
 			printf("%d ", intra_dep[pos]);
-//			int tilepos = dep_stride * segLengthX + tileX - tt * isRegular;
-//			tilepos += i / dep_stride * segLengthX + i % dep_stride;
-//			printf("%d ", tile[tilepos]);
 //			printf("thread: %d, pos: %d, tilepos: %d, intra: %d, tile: %d\n", i, pos, tilepos, intra_dep[pos], tile[tilepos]);
 		}
 		printf("\n");
@@ -400,6 +400,7 @@ __global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var
 #endif
 	//need two arrays: 1. tile raw data; 2. intra-stream dependence
 	//intra_dep size is restricted by the "dep_stride", "tileY", and "tileT"
+#ifdef _ONE_BLOCK
 	//tileX: 64; tileY: 64, stride: 1-3, 48 KB
 //	volatile __shared__ int tile1[4900];
 //	volatile __shared__ int tile2[4900];
@@ -411,16 +412,35 @@ __global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var
 //	__shared__ int intra_dep[6800];
 
 	//tileX: 32; tileY: 64, stride: 1-4, 32 KB
+	volatile __shared__ int tile1[2880];
+	volatile __shared__ int tile2[2880];
+	__shared__ int intra_dep[2410];
+	
+	//tileX: 32; tileY: 64, stride: 1-8, 48 KB
+//	volatile __shared__ int tile1[3840];
+//	volatile __shared__ int tile2[3840];
+//	__shared__ int intra_dep[4352];
+
+	//tileX: 32; tileY: 64, stride: 1-4, 32 KB
+	volatile __shared__ int tile1[2880];
+	volatile __shared__ int tile2[2880];
+	__shared__ int intra_dep[2410];
+#else
+	//tileX: 32; tileY: 64, stride: 1-2, 32 KB
+//	volatile __shared__ int tile1[2448];
+//	volatile __shared__ int tile2[2448];
+//	__shared__ int intra_dep[3280];
+
+	//tileX: 32; tileY: 64, stride: 1-4, 32 KB
 //	volatile __shared__ int tile1[2880];
 //	volatile __shared__ int tile2[2880];
 //	__shared__ int intra_dep[2410];
 	
-	//tileX: 32; tileY: 64, stride: 1-8, 48 KB
-	volatile __shared__ int tile1[3840];
-	volatile __shared__ int tile2[3840];
-	__shared__ int intra_dep[4352];
-
-	
+	//tileX: 32; tileY: 64, stride: 1-4, 48 KB
+	volatile __shared__ int tile1[2880];
+	volatile __shared__ int tile2[2880];
+	__shared__ int intra_dep[6508];
+#endif
 	__shared__ int YoverX[1];
 	__shared__ int dep_stride[1];
 	__shared__ int segLengthX[1];
@@ -484,9 +504,9 @@ __threadfence();
 __syncthreads();
 #endif
 		for (int tt=0; tt<tileT; tt++){
-			moveIntraDepToTileEdge(&dev_arr[batchStartAddress], &tile1[dep_stride[0] * segLengthX[0]], width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 0);
 			//parameter offset == 0
 			moveInterDepToTileEdge(&dev_arr[batchStartAddress], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt, tileX[0], 0);
+			moveIntraDepToTileEdge(&dev_arr[batchStartAddress], tile1, width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 0);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_FIRST_BATCH
@@ -626,8 +646,8 @@ __threadfence();
 __syncthreads();
 #endif
 			for (int tt=0; tt<tileT; tt++){
-				moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
 				moveInterDepToTileEdge(&dev_arr[batchStartAddress], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt, tileX[0], 0);
+				moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
 				__threadfence();
 				__syncthreads();
 #ifdef PRINT_FIRST_BATCH
@@ -757,10 +777,10 @@ __threadfence();
 __syncthreads();
 #endif
 		for (int tt=0; tt<tileT; tt++){
-			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
 			//set variable offset == 1 if it is the last tile of each batch to copy right-side out-of-range elements to 
-			moveIntraDepToTileEdge(&dev_arr[batchStartAddress], &tile1[dep_stride[0] * segLengthX[0]], height, segLengthX, dep_stride, tt, n1, tileY[0], stride, 1);
 			moveInterDepToTileEdge(&dev_arr[batchStartAddress], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt, tt * stride[0] + dep_stride[0], 0);
+			moveIntraDepToTile(intra_dep, tile1, tt, tileY, segLengthX, dep_stride, tileY[0]);
+			moveIntraDepToTileEdge(&dev_arr[batchStartAddress], tile1, height, segLengthX, dep_stride, tt, n1, tileY[0], stride, 1);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_FIRST_BATCH
@@ -887,7 +907,7 @@ __syncthreads();
 			//move out-of-range elements which are beanth the bottom boundary to the tile
 			//variable offset == 1, used to locate the bottom out-of-boundary elements.
 			moveInterDepToTileEdge(&dev_arr[batchStartAddress], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt, tileX[0], 1);
-			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - (tt * stride[0] + dep_stride[0]) * width[0]], &tile1[0], width, segLengthX, dep_stride, tt, n1, tt * stride[0] + dep_stride[0], stride, 0);
+			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - (tt * stride[0]) * width[0]], &tile1[0], width, segLengthX, dep_stride, tt, n1, tt * stride[0] + dep_stride[0], stride, 0);
 			__threadfence();	
 			__syncthreads();
 #ifdef PRINT_LAST_BATCH
@@ -1075,9 +1095,7 @@ __syncthreads();
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
 #ifdef LAST_BATCH
 		for (int tt=0; tt<tileT; tt++){
-			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tt * stride[0]);
 			//set variable offset == 1 if it is the last tile of each batch to copy right-side out-of-range elements to 
-			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - (dep_stride[0] + tt * stride[0]) * width[0]], &tile1[0], height, segLengthX, dep_stride, tt, n1, dep_stride[0] + tt * stride[0], stride, 1);
 			
 			//1. inter_stream_dep elements from previous tile (on top of intra_dep elements); total size == len + dev_stride, where len == tt, which is 0 at t0
 			//2. out-of-range elements
@@ -1087,6 +1105,8 @@ __syncthreads();
 			//move out-of-range elements which are beanth the bottom boundary to the tile
 			//variable offset == 1, used to locate the bottom out-of-boundary elements.
 			moveInterDepToTileEdge(&dev_arr[batchStartAddress], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt, tt * stride[0] + dep_stride[0], 1);
+			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tt * stride[0]);
+			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - (tt * stride[0]) * width[0]], &tile1[0], height, segLengthX, dep_stride, tt, n1, dep_stride[0] + tt * stride[0], stride, 1);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_LAST_BATCH
@@ -1189,12 +1209,12 @@ __syncthreads();
 #endif
 		for (int tt = 0; tt < tileT; tt++){
 			//moveIntraDepToTileEdge() should include two parts: 
-			//1. the elements in prior to the tile entries; 
-			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - tt * stride[0] * width[0]], &tile1[dep_stride[0] * segLengthX[0]], width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 0);
 			//the first tile is not in regular size, so variable len = tileX-tt
 			moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tileX[0] - tt * stride[0]);
 			//2. the elements in prior to the inter-dep entries
-			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - (dep_stride[0] + tt * stride[0]) * width[0]], &tile1[0], width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 0);
+//			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - (dep_stride[0] + tt * stride[0]) * width[0]], &tile1[0], width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 0);
+			//1. the elements in prior to the tile entries; 
+			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - tt * stride[0] * width[0]], tile1, width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 0);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_MID_BATCH
@@ -1335,8 +1355,8 @@ __syncthreads();
 #endif
 			for (int tt=0; tt<tileT; tt++){
 				//isRegular == 0 because this is a regular tile.
-				moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
 				moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tileX[0]);
+				moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
 				__threadfence();
 				__syncthreads();
 #ifdef PRINT_MID_BATCH
@@ -1442,15 +1462,15 @@ __syncthreads();
 		read_tile_lock_for_batch(dev_row_lock, curBatch, tileIdx, YoverX, xseg, yseg, timepiece);
 #ifdef MID_BATCH
 		for (int tt=0; tt<tileT; tt++){
-			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
-			//set variable offset == 1 if it is the last tile of each batch to copy right-side out-of-range elements to 
-			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - tt * stride[0] * width[0]], &tile1[dep_stride[0] * segLengthX[0]], width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 1);
 			//1. inter_stream_dep elements from previous tile (on top of intra_dep elements); total size == len + dev_stride, where len == tt, which is 0 at t0
 			//2. out-of-range elements
 			//copy edge elements first to cover the out-of-range elements, then copy the inter_stream_dep of previous stream and cover a part of the out-of-range elements.
 			//variable len == tt + dev_stride, which covers the size of the elements, calculated in previous stream, and the out-of-range elements.
 			moveInterDepToTileEdge(&dev_arr[batchStartAddress - tt * stride[0] * width[0]], &tile1[0], tileX, dep_stride, stride, n2, segLengthX, width, tileIdx, tt, tt * stride[0] + dep_stride[0], 0);
 			moveInterDepToTile(inter_stream_dep, &tile1[0], tt, tileX, dep_stride, curSMStream, tileT, n1, segLengthX, tileIdx, tt * stride[0]);
+			moveIntraDepToTile(&intra_dep[0], &tile1[0], tt, tileY, segLengthX, dep_stride, tileY[0]);
+			//set variable offset == 1 if it is the last tile of each batch to copy right-side out-of-range elements to 
+			moveIntraDepToTileEdge(&dev_arr[batchStartAddress - tt * stride[0] * width[0]], tile1, width, segLengthX, dep_stride, tt, n1, tileY[0], stride, 1);
 			__threadfence();
 			__syncthreads();
 #ifdef PRINT_MID_BATCH
@@ -1571,7 +1591,7 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
 //	int intra_size = 32 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
 	//tileT is restriced by "tileY" and "intra_dep" shared array size.
-	int tileT = min(tileX, tileY);
+	int tileT = min(tileX, tileY) - 1;
 	tileT = tileT > MAXTRIAL ? MAXTRIAL : tileT;
 	//compare required shared memory to available shared memory for intra_dep array.
 	while (tileT * dep_stride * tileY > intra_size){
@@ -1580,7 +1600,7 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	//because of the shift during calculation, the total shift distance for tileT iteration must be smaller than min(tileX, tileY).
 	//total shift distance = tileT * stride;
 //	tileT = (tileT * stride) > min(tileX, tileY) ? min(tileX, tileY) / stride - 1 : tileT;
-	while (tileT * stride > min(tileX, tileY)){
+	while (tileT * stride >= min(tileX, tileY)){
 		tileT--;
 	}
 	while (MAXTRIAL % tileT != 0){
