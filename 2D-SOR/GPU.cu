@@ -33,92 +33,14 @@ __device__ void _jacobi_cross(int* dev_arr1, int* dev_arr2, int idx, int rowsize
 	dev_arr2[idx] = total / ((dist + dist + 1) * 2 - 1);
 }
 
-__device__ void _5pt_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	dev_arr2[idx] = (dev_arr1[idx-1] + dev_arr1[idx-rowsize] + dev_arr1[idx] + dev_arr1[idx+1] + dev_arr1[idx+rowsize]) / 5;	
-}
-
-__device__ void _9pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	dev_arr2[idx] = (dev_arr1[idx - rowsize - 1] + dev_arr1[idx - rowsize] + dev_arr1[idx - rowsize + 1] + dev_arr1[idx-1] + dev_arr1[idx] + dev_arr1[idx + 1] + dev_arr1[idx + rowsize - 1] + dev_arr1[idx+rowsize] + dev_arr1[idx + rowsize + 1]) / 9;	
-}
-
-__device__ void _9pt_CROSS_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	dev_arr2[idx] = (dev_arr1[idx - rowsize - rowsize] + dev_arr1[idx - rowsize] + dev_arr1[idx] + dev_arr1[idx-1] + dev_arr1[idx - 2] + dev_arr1[idx + 1] + dev_arr1[idx + 2] + dev_arr1[idx + rowsize] + dev_arr1[idx + rowsize + rowsize]) / 9;	
-}
-
-__device__ void _25pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	int total = 0;
-	for (int i = -2; i <= 2; i++){
-		for (int j = -2; j <= 2; j++){
-			total += dev_arr1[idx + i * rowsize + j];
-		}
-	}
-	dev_arr2[idx] = total / 25;
-}
-
-__device__ void _13pt_CROSS_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	int total = 0;
-	for (int i = -3; i < 0; i++){
-		total += dev_arr1[idx + i * rowsize];
-	}
-	for (int i = 1; i <= 3; i++){
-		total += dev_arr1[idx + i * rowsize];
-	}
-	for (int i = -3; i <= 3; i++){
-		total += dev_arr1[idx + i];
-	}
-	dev_arr2[idx] = total / 13;
-}
-
-__device__ void _49pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	int total = 0;
-	for (int i = -3; i <= 3; i++){
-		for (int j = -3; j <= 3; j++){
-			total += dev_arr1[idx + i * rowsize + j];
-		}
-	}
-	dev_arr2[idx] = total / 49;
-}
-	
-__device__ void _17pt_CROSS_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	int total = 0;
-	for (int i = -4; i < 0; i++){
-		total += dev_arr1[idx + i * rowsize];
-	}
-	for (int i = 1; i <= 4; i++){
-		total += dev_arr1[idx + i * rowsize];
-	}
-	for (int i = -4; i <= 4; i++){
-		total += dev_arr1[idx + i];
-	}
-	dev_arr2[idx] = total / 17;
-}
-
-__device__ void _81pt_SQUARE_SOR(int* dev_arr1, int* dev_arr2, int idx, int rowsize){
-	int total = 0;
-	for (int i = -4; i <= 4; i++){
-		for (int j = -4; j <= 4; j++){
-			total += dev_arr1[idx + i * rowsize + j];
-		}
-	}
-	dev_arr2[idx] = total / 81;
-}
-
 
 __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, const int colsize, 
 		const int n1, const int threadsPerBlock, int padd, int stride){
 	int offset = rowsize * blockIdx.x + padd;
 	int idx = threadIdx.x + offset;
 	while (idx < n1 + offset){
-//		_5pt_SOR(dev_arr1, dev_arr2, idx, rowsize);
-//		_9pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
-//		_9pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
-//		_25pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
-//		_13pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
-//		_49pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
-//		_17pt_CROSS_SOR(dev_arr1, dev_arr2, idx, rowsize);
-//		_81pt_SQUARE_SOR(dev_arr1, dev_arr2, idx, rowsize);
-		_jacobi_square(dev_arr1, dev_arr2, idx, rowsize, stride);
-//		_jacobi_cross(dev_arr1, dev_arr2, idx, rowsize, stride);
+//		_jacobi_square(dev_arr1, dev_arr2, idx, rowsize, stride);
+		_jacobi_cross(dev_arr1, dev_arr2, idx, rowsize, stride);
 
 		idx += threadsPerBlock;
 	}	

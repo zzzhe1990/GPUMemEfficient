@@ -9,16 +9,16 @@
 
 int main(){
 	int n = 8192;
-	int trial = 512;
-	int s = 7;	//stride
+	int trial = 64;
+	int s = 5;	//stride
      	int padd = s * 2;
 	int nn = n + padd + padd;
 
 //	int* arr1 = (int*)malloc(nn * nn * sizeof(int));
 //	int* arr2 = (int*)malloc(nn * nn * sizeof(int));
 
-	static int arr1[8220][8220];
-	static int arr2[8220][8220];
+	static int arr1[8230][8230];
+	static int arr2[8230][8230];
 
 	for (int row = 0; row < nn; row++){
 		for (int col = 0; col < nn; col++){
@@ -36,7 +36,7 @@ int main(){
 		for (int t=0; t < trial; t++){
 	        	#pragma acc kernels
 	     		{
-				#pragma acc loop tile(32,4) device_type(nvidia)
+				#pragma acc loop tile(32,8) device_type(nvidia)
      	     			for (int r = padd; r < nn - padd; r++){
 //					#pragma acc loop gang(16), vector(32)
 					for (int c = padd; c < nn - padd; c++){
@@ -57,7 +57,7 @@ int main(){
 
 					}
 				}
-				#pragma acc loop tile(32,4) device_type(nvidia)
+				#pragma acc loop tile(32,8) device_type(nvidia)
 		                for (int r = padd; r < nn - padd; r++){
 					for (int c = padd; c < nn - padd; c++)
 //						arr1[r * nn + c] = arr2[r * nn + c];

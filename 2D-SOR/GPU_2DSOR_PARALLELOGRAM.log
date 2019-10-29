@@ -282,6 +282,13 @@ To do:
 
 
 
+######################################################
+Oct 27
+######################################################
+Complete:
+1. inter_dep array structure is changed, see code GPU_2DSOR_PARALLEGORAM_LessGlobalAccess.cu
+
+
 
 
 

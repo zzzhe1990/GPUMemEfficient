@@ -365,20 +365,6 @@ __global__ void GPU_Tile(volatile int* dev_arr, const int curBatch, int* dev_var
 	//need two arrays: 1. tile raw data; 2. intra-stream dependence
 	//intra_dep size is restricted by the "dep_stride", "tileY", and "tileT"
 	//inter_dep size is restricted by "dep_stride", "tileX", and "tileT".
-	//tileX: 64; tileY: 64, stride: 1-3, 48 KB
-//	volatile __shared__ int tile1[4900];
-//	volatile __shared__ int tile2[4900];
-//	__shared__ int intra_dep[2470];
-	
-	//tileX: 32; tileY: 32, stride: 1-10, 48 KB
-//	volatile __shared__ int tile1[2704];
-//	volatile __shared__ int tile2[2704];
-//	__shared__ int intra_dep[6800];
-
-	//tileX: 32; tileY: 64, stride: 1-4, 32 KB
-//	volatile __shared__ int tile1[2880];
-//	volatile __shared__ int tile2[2880];
-//	__shared__ int intra_dep[2410];
 	
 	//tileX: 32; tileY: 64, stride: 1-5, 48 KB
 	volatile __shared__ int tile1[3108];
@@ -1506,7 +1492,6 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	int tileY = 64;
 	//the shared memory available for intra_dep array.
 	int intra_size = 48 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
-//	int intra_size = 32 / (int)sizeof(int) * 1024 - (tileX + dep_stride) * (tileY + dep_stride) * 2;
 	//tileT is restriced by "tileY" and "intra_dep" shared array size.
 	int tileT = min(tileX, tileY);
 	tileT = tileT > MAXTRIAL ? MAXTRIAL : tileT;
@@ -1533,9 +1518,9 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	int yseg = n2 / tileY + 1;
 	int tseg = (MAXTRIAL + tileT - 1) / tileT;
 #ifndef RTX_2080
-	int numStream = min(28, yseg);
+	int numStream = 28;
 #else
-	int numStream = min(136, yseg);
+	int numStream = 68;
 #endif
 	int stream_offset = yseg % numStream;
 
@@ -1623,7 +1608,6 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 			int rowStartOffset = padd * width + padd;
 			int batchStartAddress = rowStartOffset + curStartAddress;
 			int nextSMStream = (curSMStream + 1) % numStream;
-//			cout << "curBatch: " << curBatch << ", stride: " << stride << ", tileX: " << tileX << ", tileY: " << tileY << ", t: " << t << ", xseg: " << xseg << ", yseg: " << yseg << ", logicStream: " << logicSMStream << ", curStream: " << curSMStream  << endl;	
 //			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, tileX, tileY, padd, stride, height, width, xseg, yseg, n1, n2, warpbatch, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock, dev_time_lock);	
 			GPU_Tile<<<blockPerGrid, threadPerBlock, 0, stream[curSMStream]>>>(dev_arr, curBatch, dev_var, curSMStream, nextSMStream, dev_inter_stream_dependence, inter_stream_dependence, tileT, timepiece, batchStartAddress, dev_row_lock, dev_time_lock);	
 			checkGPUError( cudaGetLastError() );

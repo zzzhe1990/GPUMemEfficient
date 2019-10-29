@@ -15,9 +15,9 @@
 #define MID_BATCH
 #define TIME_LOCK
 #define SYNC
-//#define RTX_2080
+#define RTX_2080
 
-const int MAX_THREADS_PER_BLOCK = 800;
+const int MAX_THREADS_PER_BLOCK = 1024;
 const int warpsize = 32;
 
 using namespace std;
@@ -1596,9 +1596,9 @@ void SOR(int n1, int n2, int stride, int padd, int *arr, int MAXTRIAL){
 	int yseg = n2 / tileY + 1;
 	int tseg = (MAXTRIAL + tileT - 1) / tileT;
 #ifndef RTX_2080
-	int numStream = min(56, yseg);
+	int numStream = min(28, yseg);
 #else
-	int numStream = min(136, yseg);
+	int numStream = min(68, yseg);
 #endif
 	int stream_offset = yseg % numStream;
 

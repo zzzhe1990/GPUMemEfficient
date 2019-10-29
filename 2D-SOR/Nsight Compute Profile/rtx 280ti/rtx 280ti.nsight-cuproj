@@ -1,0 +1,67 @@
+{
+    "extension": "nsight-cuproj",
+    "files": [
+        {
+            "path": "../../jacobi_cross_GPU.nsight-cuprof-report"
+        },
+        {
+            "path": "../../jacobi_cross_MyGPU.nsight-cuprof-report"
+        },
+        {
+            "path": "../../jacobi_square_GPU.nsight-cuprof-report"
+        },
+        {
+            "path": "../../jacobi_square_MyGPU_rtx2080ti.nsight-cuprof-report"
+        }
+    ],
+    "launcher": {
+        "activity/interactiveprofile/disableprofilingstartstop": false,
+        "activity/interactiveprofile/enablenvtxsupport": false,
+        "activity/interactiveprofile/enableprofilingfromstart": true,
+        "activity/profile/applyrules": false,
+        "activity/profile/computeworkloadanalysis": true,
+        "activity/profile/disableprofilingstartstop": false,
+        "activity/profile/enablenvtxsupport": false,
+        "activity/profile/enableprofilingfromstart": true,
+        "activity/profile/forceoverwrite": true,
+        "activity/profile/instructionstats": true,
+        "activity/profile/kernelid": "",
+        "activity/profile/kernelregex": "",
+        "activity/profile/kernelregexbase": "Function",
+        "activity/profile/launchcapturecount": "0",
+        "activity/profile/launchskipbeforematchcount": "0",
+        "activity/profile/launchskipcount": "0",
+        "activity/profile/launchstats": true,
+        "activity/profile/memoryworkloadanalysis": true,
+        "activity/profile/metrics": "",
+        "activity/profile/occupancy": true,
+        "activity/profile/outputfile": "",
+        "activity/profile/schedulerstats": true,
+        "activity/profile/sourcecounters": true,
+        "activity/profile/speedoflight": true,
+        "activity/profile/warpstatestats": true,
+        "platform/linux/arguments": "13 13 512 5",
+        "platform/linux/arguments/history": [
+            "13 13 512 5"
+        ],
+        "platform/linux/autoconnect": true,
+        "platform/linux/device": "localhost",
+        "platform/linux/environment": "",
+        "platform/linux/executable": "/home/yuanzhe/Desktop/GPUMemEfficient/2D-SOR/GPU",
+        "platform/linux/executable/history": [
+            "/home/yuanzhe/Desktop/GPUMemEfficient/2D-SOR/GPU"
+        ],
+        "platform/linux/workingdir": "/home/yuanzhe/Desktop/GPUMemEfficient/2D-SOR",
+        "platform/linux/workingdir/history": [
+            "/home/yuanzhe/Desktop/GPUMemEfficient/2D-SOR"
+        ],
+        "platform/win32/arguments": "",
+        "platform/win32/autoconnect": true,
+        "platform/win32/environment": "",
+        "platform/win32/executable": "",
+        "platform/win32/workingdir": "",
+        "platform/windows/device": ""
+    },
+    "uuid": "{cb802f06-9831-4e9b-a9f3-e7ea1b81d2cb}",
+    "version": "1.0"
+}
