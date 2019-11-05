@@ -8,7 +8,7 @@
 #include<errno.h>
 
 int main(){
-	int n = 8192;
+	int n = 4096;
 	int trial = 64;
 	int s = 5;	//stride
      	int padd = s * 2;

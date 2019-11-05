@@ -1,0 +1,14 @@
+==8904== NVPROF is profiling process 8904, command: ./GPU_2DSOR_PARALLELOGRAM_LessGlobalAccess 12 12 64 5
+==8904== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==8904== Profiling application: ./GPU_2DSOR_PARALLELOGRAM_LessGlobalAccess 12 12 64 5
+==8904== Profiling result:
+==8904== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "GeForce GTX 1080 Ti (0)"
+    Kernel: GPU_Tile(int volatile *, int, int*, int, int, int volatile *, int, int, int, int, int volatile *, int volatile *)
+       1040                           global_hit_rate         Global Hit Rate in unified l1/tex       0.00%      47.47%       0.09%
+       1040                           l2_tex_hit_rate                         L2 Cache Hit Rate      30.89%      70.66%      35.58%
+       1040                            gld_efficiency             Global Memory Load Efficiency      80.04%      85.78%      85.65%
+       1040                          gld_transactions                  Global Load Transactions      208274      238230      217620
+       1040                            gst_efficiency            Global Memory Store Efficiency      77.79%      86.77%      86.36%
+       1040                          gst_transactions                 Global Store Transactions       12991       68841       61140

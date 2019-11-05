@@ -39,7 +39,7 @@ __global__ void GPU(int *dev_arr1, int *dev_arr2, const int rowsize, const int c
 	int offset = rowsize * blockIdx.x + padd;
 	int idx = threadIdx.x + offset;
 	while (idx < n1 + offset){
-//		_jacobi_square(dev_arr1, dev_arr2, idx, rowsize, stride);
+		//_jacobi_square(dev_arr1, dev_arr2, idx, rowsize, stride);
 		_jacobi_cross(dev_arr1, dev_arr2, idx, rowsize, stride);
 
 		idx += threadsPerBlock;

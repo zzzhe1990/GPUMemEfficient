@@ -50,8 +50,8 @@ __device__ void _jacobi_cross(volatile int* tile1, volatile int* tile2, int newt
 }
 
 __device__ void stencil(volatile int* tile1, volatile int* tile2, int newtilePos, int tilePos, int* stride, int* segLengthX){
-	_jacobi_square(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
-//	_jacobi_cross(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+//	_jacobi_square(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
+	_jacobi_cross(tile1, tile2, newtilePos, tilePos, stride, segLengthX);
 }
 
 

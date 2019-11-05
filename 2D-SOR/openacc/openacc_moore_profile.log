@@ -1,0 +1,23 @@
+==8527== NVPROF is profiling process 8527, command: ./SOR
+==8527== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==8527== Profiling application: ./SOR
+==8527== Profiling result:
+==8527== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "GeForce GTX 1080 Ti (0)"
+    Kernel: main_62_gpu
+         64                        achieved_occupancy                        Achieved Occupancy    0.818431    0.822539    0.820377
+         64                           global_hit_rate         Global Hit Rate in unified l1/tex       0.00%       0.00%       0.00%
+         64                           l2_tex_hit_rate                         L2 Cache Hit Rate      31.21%      31.24%      31.22%
+         64                            gld_efficiency             Global Memory Load Efficiency      84.21%      84.21%      84.21%
+         64                          gld_transactions                  Global Load Transactions     8388610     8388610     8388610
+         64                            gst_efficiency            Global Memory Store Efficiency      84.21%      84.21%      84.21%
+         64                          gst_transactions                 Global Store Transactions     2490368     2490368     2490368
+    Kernel: main_42_gpu
+         64                        achieved_occupancy                        Achieved Occupancy    0.957944    0.958642    0.958369
+         64                           global_hit_rate         Global Hit Rate in unified l1/tex       0.00%       0.00%       0.00%
+         64                           l2_tex_hit_rate                         L2 Cache Hit Rate      98.90%      98.90%      98.90%
+         64                            gld_efficiency             Global Memory Load Efficiency      81.86%      81.86%      81.86%
+         64                          gld_transactions                  Global Load Transactions  1015021570  1015021570  1015021570
+         64                            gst_efficiency            Global Memory Store Efficiency      84.21%      84.21%      84.21%
+         64                          gst_transactions                 Global Store Transactions     2490368     2490368     2490368
