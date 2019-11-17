@@ -1,0 +1,116 @@
+#include <assert.h>
+#include <stdio.h>
+#include "SOR_kernel.hu"
+#include<stdio.h>
+#include<stdlib.h>
+#include<math.h>
+#include<sys/time.h>
+#include<sys/stat.h>
+#include<fcntl.h>
+#include<string.h>
+#include<errno.h>
+
+const int n1 = 4096, n2 = 4096;
+const int nn1 = 4108, nn2 = 4108;
+
+int _jacobi_square(int arr1[nn1][nn2], int arr2[nn1][nn2], int stride, int r, int c){
+	int total = 0;
+	for (int row = r - stride; row <= r + stride; row++){
+		for (int col = c - stride; col <= c + stride; col++){
+			total += arr1[row][col];
+		}
+	}
+	return total / (stride + stride + 1) / (stride + stride + 1);
+}
+
+int _jacobi_cross(int arr1[nn1][nn2], int arr2[nn1][nn2], int stride, int r, int c){
+	int total = 0;
+	for (int row = r - stride; row < 0; row++){
+		total += arr1[row][c];	
+	}
+	for (int row = 1; row < r + stride; row++){
+		total += arr1[row][c];
+	}
+	for (int col = c - stride; col <= c + stride; col++){
+		total += arr1[r][col];
+	}
+	return total / ((stride + stride + 1) * 2 - 1);
+}
+
+void SOR(int len1, int len2, int arr1[nn1][nn2], int arr2[nn1][nn2], int padd, int trial, int stride){
+	struct timeval tbegin, tend;
+	gettimeofday(&tbegin, NULL);
+	
+	if (trial >= 1 && len1 >= padd + 1 && len2 >= padd + 1) {
+#define cudaCheckReturn(ret) \
+  do { \
+    cudaError_t cudaCheckReturn_e = (ret); \
+    if (cudaCheckReturn_e != cudaSuccess) { \
+      fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(cudaCheckReturn_e)); \
+      fflush(stderr); \
+    } \
+    assert(cudaCheckReturn_e == cudaSuccess); \
+  } while(0)
+#define cudaCheckKernel() \
+  do { \
+    cudaCheckReturn(cudaGetLastError()); \
+  } while(0)
+
+	  int *dev_arr1;
+	  int *dev_arr2;
+	  
+	  cudaCheckReturn(cudaMalloc((void **) &dev_arr1, (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647 ? 2147483648 : stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647 ? len1 + stride : len1) * (4108) * sizeof(int)));
+	  cudaCheckReturn(cudaMalloc((void **) &dev_arr2, (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647 ? 2147483648 : stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647 ? len1 + stride : len1) * (4108) * sizeof(int)));
+	  
+	  if ((padd <= 4107 && padd + stride >= 2147483648) || (padd <= 4107 && stride <= -1) || (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647) || (stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647)) {
+	    cudaCheckReturn(cudaMemcpy(dev_arr1, arr1, (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647 ? 2147483648 : stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647 ? len1 + stride : len1) * (4108) * sizeof(int), cudaMemcpyHostToDevice));
+	    cudaCheckReturn(cudaMemcpy(dev_arr2, arr2, (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647 ? 2147483648 : stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647 ? len1 + stride : len1) * (4108) * sizeof(int), cudaMemcpyHostToDevice));
+	  }
+	  for (int c0 = 0; c0 < trial; c0 += 2) {
+	    {
+	      dim3 k0_dimBlock(16, 32);
+	      dim3 k0_dimGrid(len2 + 30 >= ((len2 + 31) % 8192) + padd ? 256 : (len2 + 31) / 32 - 256 * ((len2 + 31) / 8192), len1 + 30 >= ((len1 + 31) % 8192) + padd ? 256 : (len1 + 31) / 32 - 256 * ((len1 + 31) / 8192));
+	      kernel0 <<<k0_dimGrid, k0_dimBlock>>> (dev_arr1, dev_arr2, trial, padd, len1, len2, stride, c0);
+	      cudaCheckKernel();
+	    }
+	    
+	    {
+	      dim3 k1_dimBlock(16, 32);
+	      dim3 k1_dimGrid(len2 + 30 >= ((len2 + 31) % 8192) + padd ? 256 : (len2 + 31) / 32 - 256 * ((len2 + 31) / 8192), len1 + 30 >= ((len1 + 31) % 8192) + padd ? 256 : (len1 + 31) / 32 - 256 * ((len1 + 31) / 8192));
+	      kernel1 <<<k1_dimGrid, k1_dimBlock>>> (dev_arr1, dev_arr2, trial, padd, len1, len2, stride, c0);
+	      cudaCheckKernel();
+	    }
+	    
+	  }
+	  if ((padd <= 4107 && padd + stride >= 2147483648) || (padd <= 4107 && stride <= -1) || (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647) || (stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647)) {
+	    cudaCheckReturn(cudaMemcpy(arr1, dev_arr1, (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647 ? 2147483648 : stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647 ? len1 + stride : len1) * (4108) * sizeof(int), cudaMemcpyDeviceToHost));
+	    cudaCheckReturn(cudaMemcpy(arr2, dev_arr2, (len1 + stride >= 2147483648 && stride + 4107 >= padd && padd + stride <= 2147483647 ? 2147483648 : stride >= 0 && stride + 4107 >= padd && len1 + stride <= 2147483647 ? len1 + stride : len1) * (4108) * sizeof(int), cudaMemcpyDeviceToHost));
+	  }
+	  cudaCheckReturn(cudaFree(dev_arr1));
+	  cudaCheckReturn(cudaFree(dev_arr2));
+	}
+	
+	gettimeofday(&tend, NULL);
+	double tt = (double)(tend.tv_sec - tbegin.tv_sec) + (double)(tend.tv_usec - tbegin.tv_usec) / 1000000.0;
+	printf("execution time: %lf s\n", tt);
+}
+
+int main(){
+	int trial = 64;
+	int stride = 3;
+     	int padd = stride * 2;
+	static int arr1[nn1][nn2];
+	static int arr2[nn1][nn2];
+
+	for (int row = 0; row < nn1; row++){
+		for (int col = 0; col < nn2; col++){
+			arr1[row][col] = rand() % 100;
+			arr2[row][col] = arr1[row][col];
+		}
+	}	
+
+
+	SOR(n1 + padd, n2 + padd, arr1, arr2, padd, trial, stride);
+
+	return 0;
+}

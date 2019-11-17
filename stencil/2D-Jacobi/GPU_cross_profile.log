@@ -1,0 +1,14 @@
+==8171== NVPROF is profiling process 8171, command: ./GPU 12 12 64 5
+==8171== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==8171== Profiling application: ./GPU 12 12 64 5
+==8171== Profiling result:
+==8171== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "GeForce GTX 1080 Ti (0)"
+    Kernel: GPU(int*, int*, int, int, int, int, int, int)
+         64                           global_hit_rate         Global Hit Rate in unified l1/tex       0.00%       0.00%       0.00%
+         64                           l2_tex_hit_rate                         L2 Cache Hit Rate      93.24%      94.08%      93.99%
+         64                            gld_efficiency             Global Memory Load Efficiency      80.77%      80.77%      80.77%
+         64                          gld_transactions                  Global Load Transactions   176160770   177033218   176174720
+         64                            gst_efficiency            Global Memory Store Efficiency      73.57%      80.00%      79.90%
+         64                          gst_transactions                 Global Store Transactions     2621440     2850548     2625019

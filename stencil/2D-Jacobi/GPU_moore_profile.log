@@ -1,0 +1,14 @@
+==7955== NVPROF is profiling process 7955, command: ./GPU 12 12 64 5
+==7955== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==7955== Profiling application: ./GPU 12 12 64 5
+==7955== Profiling result:
+==7955== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "GeForce GTX 1080 Ti (0)"
+    Kernel: GPU(int*, int*, int, int, int, int, int, int)
+         64                           global_hit_rate         Global Hit Rate in unified l1/tex       0.00%       0.00%       0.00%
+         64                           l2_tex_hit_rate                         L2 Cache Hit Rate      98.77%      98.91%      98.91%
+         64                            gld_efficiency             Global Memory Load Efficiency      81.48%      81.48%      81.48%
+         64                          gld_transactions                  Global Load Transactions  1015021570  1015782722  1015033463
+         64                            gst_efficiency            Global Memory Store Efficiency      80.00%      80.00%      80.00%
+         64                          gst_transactions                 Global Store Transactions     2621440     2621440     2621440

@@ -1,0 +1,318 @@
+Version 1.0: 
+1. In the processing of last batch of tile, "else if (curBatch == yseg - 1)", we made several assumption to make the development simple. Search "version 1.0" to see the comments of these assumptions in the code file.
+2. "dep_stride = stride + 1" is correct based on the assumption that "stride == 1". When "stride is larger than 1, 
+it is possible that "dep_stride = 2 * stride"
+
+
+Completed:
+1. skelenton code is completed.
+2. stream scheduling, kernel launching, and lock functions are working properly.
+3. two-level locks.
+4. large data based test is correct when "dep_stride" == 2.
+
+
+Keep In Mind:
+1. We are now only able to use "512" threads.
+2. "tileT" is restricted by "tileY", "dep_stride", and "intra_dep" array size.
+3. "tile1" and "tile2" size is now set to "71 * 71" for now to accomodate the largest possible target tile of "64 * 64" and the corresponding "intra" and "inter" dependence data entries. 
+4. However, "tile1" and "tile2" size should not be constant to "71 * 71", we should adjust this size according to the threads number. Also, the smaller "tile1" and "tile2" indicates larger "intra_dep" array, which can also increase "tileT".
+5. Thus, the tradeoff between "tile1 tile2" and "intra_dep", which is actually the tradeoff between "tileX * tileY" and "tileT", is a important part of the performance evaluation.
+
+
+################################################################
+May 15 2019
+################################################################
+Solved:
+1. if (curBatch == 0): moveMatrixToTile() function is now working properly when copying a tile of size 4*4 to shared memory.
+2. if (curBatch == 0): moveIntraDepToTileEdge() function works properly when tt = 0 and tileT = 1.
+3. if (curBatch == 0): moveInterDepToTileEdge() function works properly when tt = 0 and tileT = 1.
+
+
+Problem:
+1. register resources exceed the capacity when threadsPerBlock = 1024.
+2. SOR.cpp: incorrect readInputData() function. Cannot skip the first row of data. Either fix it or change paddsize to 1.
+
+
+###############################################################
+Jun 5th
+###############################################################
+Solved:
+1. SOR.cpp: readInputData() function. Read all data and process only the central block of (n1+2) * (n2+2).
+
+
+###############################################################
+Jun 10th
+##############################################################
+Problem:
+1. moveTileToInterDepEdge() function does not access correct memory address. The print out message is not right.
+Solved;
+
+
+##############################################################
+Jun 11th
+#############################################################
+Problem:
+1. moveTileToInterDep() function: inter_stream_dep[] is not stored correctly, the print information is not correct.
+Found not solved.
+
+##############################################################
+Jun 17th
+#############################################################
+Problem:
+1. in function moveMatrixToTile(), the element for the last row of the tile are not stored correctly into the shared memory.
+Data entries could be accessed correctly; however, some data entries cannot be properly stored into the shared memory.
+This problem is caused by swaping the data entries between shared memory tile1 and tile2.
+Solved: Introducing threadfence() before the swap function.
+
+
+###########################################################
+Jun 18th
+###########################################################
+Solved:
+1. "width" and "height" variables are revised. 
+2. curBatch == 0, tileIdx >= 1 && tileIdx < xseg - 1; "newtilePos" is changed to store the results into the tile area instead of dependent data area.
+3. curBatch == 0, tileIdx >= 1 && tileIdx < xseg - 1; "glbPos" is changed from "glbPos = tileAddress" to "glbPos = tileAddress - tileT" to adapt the shift along x dimension.
+4. In function moveShareToGLobal() and moveShareToGlobalEdge(), we should use "width" instead of "height" as parameter.
+
+Needs to be fixed:
+1. Like what we did to "glbPos" in this work, we might need to change "glbPos" accordingly in other simulation to adapt the shift of data entries.
+
+
+##########################################################
+July 12
+##########################################################
+idea:
+1. replace cudaMalloc with cudaManagedMalloc() to see if it allows a large size test case.
+
+##########################################################
+July 28th
+##########################################################
+Problem:
+1. moveIntraDepToShare() may encounter error. The intra-dep data should be copied to the array for next tile before updating the next time step results of the current tile.
+	a. Move intra-dep array data to shared memory block;
+	b. Calculate the next time stamp result of the shared memory block;
+	c. Move intra-dep data for next tile to intra-dep array.
+	d. Move shared memory block back to GPU memory array.
+Solved: Instead of copy data entries from global memory to intra_dep array, in shared memory, we copy the intra_dep data that locates in shared memory block, which are not updated by next stamp result, to intra_dep array.
+
+Completed:
+1. first batch with tileT == 1 is completed. Test case 3 * 3 matrix with size 2 padding.
+
+
+##########################################################
+Aug 18th
+##########################################################
+Problem:
+1. For "else if(curBatch = yseg - 1)", the first tile, what is the correct value for variable "len" in "moveIntraDepToTileEdge()" function. Temporary, we make "len == tt + dep_stride" which is not correct when "stride > 1".
+  
+
+
+##########################################################
+Aug 20th
+##########################################################
+Change:
+1. Function "moveIntraDepToTileEdge()", pointer variable "tile" is changed from "&tile1[0]" to "&tile1[x]", where "x" is the start address set up accordingly.
+2. Function "moveIntraDepToTileEdge()", pointer variable "dev_arr" is changed from "dev_arr" to "&dev_arr[x]", where "x" is the start address set up accordingly.
+3. In MID_BATCH branch, the first tile calls "moveIntraDepToTileEdge()" two times. One for the elements in prior to the tile entries; the other one for the elements in prior to the inter_dep entries.
+4. In MID_BATCH branch, the first tile: before function "moveShareToGlobalEdge()", variable "glbPos" is changed from 
+tileAddress" to "tileAddress - tileT * width".
+5. Function "moveInterDepToTileEdge()", pointer variable "dev_arr" is changed from "dev_arr" to "&dev_arr[x]", where "x" is the start address set up accordingly.
+
+
+#########################################################
+Aug 22st
+#########################################################
+Change:
+1. In memory copy functions like "moveInterDepToTileEdge()", "moveIntraDepToTileEdge()", and etc, the shifting offset is considered and applied in two places:
+	a. function passing parameter: pass the pointer, pointed to an adjusted address.
+	b. inside of each function, add shifting adjustment, which is decided by timestamp "tt".
+
+To do:
+1. In function "moveInterDepToTileEdge()", the if statement "if (threadIdx.x < len + dep_stride)" might not be correct. Not sure if "dep_stride" should be removed because it is already included in "len". Also, we only copy the out-of-range entries in this function and do not need to include the "dep_stride" number of inter-dep entries, which are in prior to the out-of-range inter-dep entries (duplicate copy).
+
+2. We now complete the testing for tileT == 1, 2, 3. However, the MAXTRIAL is still 1. Next step, we should test the case that tileT > 1 and MAXTRIAL > 1, which requires lock synchronize and global memory coherence.
+
+
+#########################################################
+Aug 27th
+#########################################################
+Problem:
+1. inter_dep array is updated by the later calculation before it is used for the current calculation. This happens at the beginning of a new timepiece and the number of streams is limited.
+For Example: 2 streams (s0, s1), 3 batches.
+batch:		1	2	3
+timepiece 1:   s0      s1      s0
+timepiece 2:   s1      s0      s1
+
+When s0 is calculating on batch 3 at timepiece 1, it is possible that s1 already starts working on batch 1 timepiece 2 concurrently. In this case, it is possible that s1 is in prior to s0, thus s1 would update the new calculated inter-dep data to s0's inter-dep array, which overwrites the current data and breaks the s0's calculation.
+
+Possible solution: In each timepiece, the first batch can only start when the next stream already complete the calculation.
+For example:  4 streams, 5 batches
+batch:		1	2	3	4	5
+timepiece 1:   s0	s1	s2	s3	s0
+timepiece 2:   s1	s2	s3	s4	s0
+
+In this example, s1 can only start working on batch 1 timepiece 2 when s2 already completes its work on batch 3 timepiece 1.
+It is also possible that this check has to be performed at the beginning of each batch, not only limited to the first batch.
+
+#######################################################
+Sep 1st
+#######################################################
+Completion:
+1. "dev_time_lock" and the related lock functions are designed and working properly.
+
+
+
+#######################################################
+Sep 2nd
+#######################################################
+Problem Solved:
+1. Incorrect result when "tileT == 1" and "total timestamp == 1".
+caused by: SOR.cpp file, incorrect pointer swap. Change from single pointer "*arr" to double pointers "**arr" for swap purpose.
+
+
+######################################################
+Sep 8th
+######################################################
+Problem:
+1. When tile size is "64 * 64" and "tileT <= 4", incorrect result returned and happened at the last batch.
+   If we change tile size to "32 * 32", there is no such issue;
+   If we change "tileT" to "8 or greater", we get incorrect result occasionally.
+   If there is only "1" time piece, which means "tileT == MAXTRIAL", we get correct result.
+
+   Inference: for tile size of "64 * 64", if number of batches in each layer is larger than the number of total streams, and "tileT" is smaller than "MAXTRIAL", the issue happens mostly when "tileT <= 8". The larger the "tileT", the less possibile that issue would occur. However, this senario does not show up when tile size is "32 * 32".
+
+
+#####################################################
+Sep 9th
+#####################################################
+Problem Solved:
+Sep 8th's problem is solved.
+	Solution: Remove the "read_time_lock_for_stream()" function from the last batch operations.
+	Reason: If last batch executes "read_time_lock_for_stream()", it is possible that this last batch cannot be started/executed because the first batch of next time layer is already started in the next stream.
+	Example: 4 streams, 6 batches, 2 time layers
+		s1	b1t1	b5t1	...
+		s2	b2t1	b6t1	...
+		s3	b3t1	b1t2	...
+		s4	b4t1	b2t2	...
+		
+		If the last batch executes "read_time_lock_for_stream()", "b6t1" has to check if "s3" already completes its previous work. Because "b1t2" is the first batch of the next layer, it is possible that "b1t2" is started on "s3" earlier than the beginning of "b6t1". In this case, "b6t1" cannot be executed because "s3" has already started a new work and "b6t1" can only be executed until "s3" complete "b1t2", which leads to incorrect memory read/write order.
+
+
+Problem:
+1. performance issue: register/thread is too large, which restricts the occupancy.
+
+
+
+####################################################
+Sep 10th
+####################################################
+Complete:
+1. optimization is tried, but no significant efficiency improvement can be achieved.
+	a. Limit the total registers / thread by compiling with "--maxrregcount = 32".
+	b. Use "56" streams instead of "28" to ensure that two kernels can be executed concurrently on one SM.
+	c. Adjust "tileX, tileY" and "tileT" to compare the performance difference on different tile sizes and different time tile size.
+	d. Remove "__syncthreads()" and "__threadfence()".
+	e. Replace some local variables with the shared memory. See "dev_var" for details.
+
+2. _9pt_SQUARE_SOR() is completed in CUDA files and CPP file, and returns correct result.
+
+To do:
+1. Try different stride problems, like 9-points SOR/Jacobi.
+
+
+
+####################################################
+Sep 11th
+####################################################
+To do:
+1. remove "swap()" function.
+
+
+Complete:
+1. Debug code to accept "stride > 1" problems. 
+	Now, pass test case: 16 * 16 matrix, trial == 2, tileT == 2, 8 * 8 tile
+	However, failed test case: 16 * 16 matrix, trial == 4, tileT == 2, 8 * 8 tile.
+
+
+####################################################
+Sep 12nd
+####################################################
+Complete:
+1. "stride > 1" is now working properly.
+2. Development work is basically completed.
+
+
+
+###################################################
+Sep 15th
+###################################################
+Complete:
+1. PPCG code is completed.
+
+
+
+#####################################################
+Oct 9th
+#####################################################
+Complete:
+1. jacobi function is added to replace the hardcode computation functions.
+
+
+
+######################################################
+Oct 12
+#####################################################
+Complete:
+Openacc is now working.
+
+Problems:
+1. GPU_TILE code does not return correct result for 64*64 tile when stride >= 4 and tileT == 2;
+2. GPU_TILE code does not return correct result for 64*32 tile.
+3. GPU_TILE code breaks for 32 * 64 tile.
+
+Completion:
+1. GPU_TILE code has restrictions on tileT for different shared memory array size.
+2. Tile size like 64 * 32 is now working.
+3. Re-organize the threads resources for RTX 2080 Ti
+
+To do:
+1. arr2 in shared memory does not need to include ghost zone elements.
+2. Tune #streams, threads per block, shared memory per block.
+
+
+
+
+######################################################
+Oct 27
+######################################################
+Complete:
+1. inter_dep array structure is changed, see code GPU_2DSOR_PARALLEGORAM_LessGlobalAccess.cu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,11 @@
+==899== NVPROF is profiling process 899, command: ./GPU_2DSOR_PARALLELOGRAM_LessGlobalAccess 12 12 48 5
+==899== Some kernel(s) will be replayed on device 0 in order to collect all events/metrics.
+==899== Profiling application: ./GPU_2DSOR_PARALLELOGRAM_LessGlobalAccess 12 12 48 5
+==899== Profiling result:
+==899== Metric result:
+Invocations                               Metric Name                        Metric Description         Min         Max         Avg
+Device "GeForce GTX 1080 Ti (0)"
+    Kernel: GPU_Tile(int volatile *, int, int*, int, int, int volatile *, int, int, int, int, int volatile *, int volatile *)
+        780                        achieved_occupancy                        Achieved Occupancy    0.499993    0.499995    0.499995
+        780                           global_hit_rate         Global Hit Rate in unified l1/tex       0.00%      47.11%       0.06%
+        780                           l2_tex_hit_rate                         L2 Cache Hit Rate      30.95%      70.66%      35.71%
