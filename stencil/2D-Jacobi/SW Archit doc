@@ -1,0 +1,45 @@
+Bad naming. The code base is inherited from the previous project and still use SOR in many file names. 
+We focus only on Jacobi computation under this repo.
+
+Code sets:
+1. Sequential code: SOR*
+2. Simple GPU code: GPU.cpp GPU.cu GPU.h
+3. Unoptimized tiling code: GPU_2DSOR_PARALLELGORAM.*
+4. optimized tiling code: GPU_2DSOR_PARALLELGORAM_LessGlobalAccess.*
+5. Incomplete optimization: GPU_2DSOR_PARALLELGORAM_Reduced_SharedMemory.cu
+                            ---- the second tile array in shared memory does not need to be the same size as the first tile array.
+6. openacc code: refer to openacc directory. C code only, ignore .cpp
+                 --compile openacc code with PGI compiler
+                 --https://www.pgroup.com/products/community.htm?utm_campaign=CE&utm_source=dev_nvidia_oacc&utm_medium=web_link&utm_term=get_ce_text
+
+Code Functions:
+swapTile: update the tile array2 results back to tile array1, which are all on shared memory
+moveMatrixToTile: Fetch the tile data elements from global memory to shared memory, tile array 1.
+moveIntraDepToTile: Move intra-dependent data elements from dependent array to tile array 1.
+moveIntraDepToTileEdge: Move intra-dependent data elements, which are located out of matrix boundary, from global memory to tile array 1.
+moveTileToIntraDep: Update the computation result from tile array 1 to intra-dependent data array.
+moveInterDepToTile: Move inter-dependent data elements from dependent array to tile array 1.
+moveInterDepToTileEdge: Move inter-dependent data elements, which are located out of matrix boundary, from global memory to tile array 1.
+moveTileToInterDep: Update the computation result from tile array 1 to intra-dependent data array.
+moveTileToInterDepEdge: Similar to moveTileToInterDep, address the corner cases.
+moveShareToGlobal: Update the computation result from tile array 1 back to global memory.
+moveShareToGlobalEdge: Similar to moveShareToGlobal, address irregular-shaped tiles.
+read_tile_lock_for_batch: lock read function for ensuring the process sequence for kernels that process multiple rows of tiles of the same time step.
+write_tile_lock_for_batch: lock write function for updating the counter flag.
+read_time_lock_for_stream: lock read function for ensuring sequence for kernels that process different time stamps.
+write_time_lock_for_stream: lock write function for updating the counter flag.
+clear_time_lock_for_stream: clear the counter flag.
+GPU_Tile: main kernel for processing a row of tiles on GPU.
+
+
+GPU_Tile structure:
+1. three conditions:
+    a. first row of tiles.
+    b. intermediate row of tiles.
+    c. last row of tiles.
+2. two-level locks
+3. processing a row of tile:
+    a. first tile of the row.
+    b. intermediate tile of the row.
+    c. last tile of the row.
+4. Update result and dependent values for each time step.
